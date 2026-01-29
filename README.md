@@ -1,14 +1,20 @@
 # Alma Wellness
 
-A gamified wellness app where completing daily health goals grows your personal plant. Track your progress locally and get inspired by demo friends in the community garden.
+A gamified wellness app where completing daily health goals grows your personal plant. Connect with friends in a shared garden, track your progress, and get inspired by a supportive community.
 
 ## Features
 
-### Local-First Design
-- **No Account Required**: Start using the app immediately after onboarding
-- **On-Device Storage**: All data stored locally using AsyncStorage
-- **Privacy-Focused**: Your wellness data stays on your device
-- **Reset Option**: Clear all data and start fresh from Profile settings
+### Friends & Social Garden
+- **Invite Friends**: Share your uniqueinvite code to add friends to your wellness circle.
+- **Shared Garden**: See your friends' plants growing alongside yours.
+- **Real-time Updates**: Friend requests and plant progress sync instantly across devices.
+- **Send Rain**: "Water" your friends' plants to send encouragement and notifications.
+- **Leaderboards**: See who is most consistent with their wellness journey.
+
+### Local & Cloud Hybrid
+- **Privacy First**: Wellness data is stored locally on your device for speed and privacy.
+- **Cloud Sync**: Profile and social features sync securely via Supabase.
+- **Offline Capable**: Continue tracking your habits even without an internet connection.
 
 ### Onboarding
 - **Welcome Flow**: Beautiful 5-step introduction with Alma logo and animated plant
@@ -78,18 +84,6 @@ A gamified wellness app where completing daily health goals grows your personal 
 - **Auto-Complete Goal**: Writing completes your journaling goal automatically
 - **Journal History**: Access past entries
 
-### Cooperative Grove
-- **Visual Grove**: See plants in a shared space with demo friends for inspiration
-- **Demo Friends**: Example friends to show how the feature works (real connections coming soon)
-- **Grove Vitality Card**: Collective progress bar showing team goal (2,500 XP weekly target)
-- **Wilting Plants**: Plants of inactive friends (>48 hours) appear faded with a water drop badge
-- **Grove Care List**: Friends sorted by who needs help most (inactive at top), tap any friend card to view details
-- **Send Rain**: Tap the CloudRain button to send encouragement to wilting friends (+10 XP)
-- **Toast Notifications**: Visual feedback when sending rain to friends
-- **Friend Profiles**: Tap any friend card or plant to see their detailed stats, achievements, and streaks
-- **Online Status**: See who's currently active with green indicators
-- **Invite System**: Share codes and invite functionality (ready for future cloud features)
-
 ### Profile
 - **Stats Overview**: Total points, current streak, and goals completed
 - **Longest Streak**: Track your personal best streak
@@ -116,6 +110,7 @@ A gamified wellness app where completing daily health goals grows your personal 
 - **Daily Reminders**: Configurable morning wellness reminders
 - **Retreat Reminders**: Get notified before upcoming events
 - **Goal Reminders**: Nudges to complete daily goals
+- **Friend Nudges**: Get notified when a friend joins or needs encouragement
 - **Customizable Settings**: Control notification preferences
 
 ### Celebrations
@@ -156,19 +151,53 @@ Complete goals to earn points and grow your plant:
 
 ## User Flow
 
-1. **New Users**: Onboarding → Feature Tour → Home
-2. **Returning Users**: Home (or Onboarding if not completed)
-3. **Daily Usage**: Complete goals → Earn points → Watch plant grow → Level up
+1. **Auth**: Sign Up / Sign In (Powered by Supabase)
+2. **New Users**: Onboarding → Feature Tour → Home
+3. **Returning Users**: Home
+4. **Daily Usage**: Complete goals → Earn points → Watch plant grow → Level up
+5. **Social**: Connect with friends -> Send Rain -> View Leaderboard
 
 ## Tech Stack
 
-- Expo SDK 53 with React Native
-- NativeWind (TailwindCSS) for styling
-- Zustand for state management with AsyncStorage persistence
-- React Native Reanimated for animations
-- React Native SVG for plant graphics
-- React Native Gesture Handler for swipe interactions
-- Expo Notifications for push notifications
+- **Framework**: Expo SDK 53 with React Native
+- **Language**: TypeScript
+- **Styling**: NativeWind (TailwindCSS)
+- **State Management**: Zustand (Local) + TanStack Query (Server State)
+- **Backend / Auth**: Supabase
+- **Animations**: React Native Reanimated
+- **Graphics**: React Native SVG
+- **Interactions**: React Native Gesture Handler
+- **Notifications**: Expo Notifications
+
+## Setup
+
+1. **Install Dependencies**:
+   ```bash
+   npm install
+   ```
+
+2. **Environment Setup**:
+   Create a `.env` file with your Supabase credentials:
+   ```env
+   EXPO_PUBLIC_SUPABASE_URL=your_supabase_url
+   EXPO_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+   ```
+
+3. **Run the App**:
+   ```bash
+   npx expo start
+   ```
+
+## Database Schema
+
+The app requires the following Supabase tables:
+- `profiles`: User data and stats
+- `friendships`: Social connections
+- `nudges`: Friend interaction notifications
+- `daily_progress`: Historical tracking
+- `push_tokens`: Device tokens for notifications
+
+(Full schema available in `supabase/schema.sql`)
 
 ## Color Palette
 
