@@ -82,3 +82,42 @@ export async function sendLocalNotification(title: string, body: string) {
         trigger: null, // Show immediately
     });
 }
+
+// Send a push notification to a specific user
+export async function sendPushNotification(userId: string, title: string, body: string) {
+    try {
+        // 1. Get user's push token
+        const { data: tokens, error } = await supabase
+            .from("push_tokens")
+            .select("token")
+            .eq("user_id", userId);
+
+        if (error || !tokens || tokens.length === 0) {
+            console.log("No push token found for user", userId);
+            return;
+        }
+
+        // 2. Send notification via Expo
+        // We send to all tokens registered for this user (e.g. iPad and iPhone)
+        const messages = tokens.map((t: { token: string }) => ({
+            to: t.token,
+            sound: "default",
+            title,
+            body,
+            data: { url: "alma://garden" }, // Deep link to garden
+        }));
+
+        await fetch("https://exp.host/--/api/v2/push/send", {
+            method: "POST",
+            headers: {
+                Accept: "application/json",
+                "Accept-encoding": "gzip, deflate",
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify(messages),
+        });
+
+    } catch (error) {
+        console.error("Error sending push notification:", error);
+    }
+}

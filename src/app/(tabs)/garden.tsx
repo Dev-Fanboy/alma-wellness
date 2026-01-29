@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   Modal,
   Share,
   TextInput,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -44,6 +45,7 @@ import { Plant } from "@/components/Plant";
 import { playWaterDrop, playSuccess, playTap } from "@/lib/sounds";
 import { useFriends } from "@/lib/hooks/useFriends";
 import { useAuth } from "@/lib/AuthContext";
+import { sendNudge as sendNudgeApi } from "@/lib/api/nudges";
 
 // Weekly target for the grove
 const WEEKLY_TARGET_XP = 2500;
@@ -62,14 +64,17 @@ export default function GardenScreen() {
   const { user } = useAuth();
   const {
     friends: cloudFriends,
+    pendingRequests,
     isAuthenticated,
     addFriendByCode,
+    acceptRequest,
+    rejectRequest,
     removeFriend: removeFriendCloud,
     loading: friendsLoading
   } = useFriends();
 
   // Use cloud friends if authenticated, otherwise use demo friends
-  const friends = isAuthenticated && cloudFriends.length > 0
+  const friends = isAuthenticated
     ? cloudFriends.map(f => ({
       id: f.id,
       name: f.name,
@@ -84,6 +89,8 @@ export default function GardenScreen() {
     : localFriends;
 
   const [showInviteModal, setShowInviteModal] = useState(false);
+  const [inviteCodeInput, setInviteCodeInput] = useState("");
+  const [joinLoading, setJoinLoading] = useState(false);
   const [showFriendModal, setShowFriendModal] = useState(false);
   const [selectedFriend, setSelectedFriend] = useState<Friend | null>(null);
   const [copiedCode, setCopiedCode] = useState(false);
@@ -91,12 +98,22 @@ export default function GardenScreen() {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [nudgedUsers, setNudgedUsers] = useState<Set<string>>(new Set());
 
+  // Auto-hide toast message
+  useEffect(() => {
+    if (toastMessage) {
+      const timer = setTimeout(() => {
+        setToastMessage(null);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [toastMessage]);
+
   // Calculate weekly points for user
   const userWeeklyPoints = Math.floor(plantPoints * 0.15);
 
   // Create user member object
   const userMember = {
-    id: "user",
+    id: user?.id || "user",
     name: userName || "You",
     avatar: userAvatar,
     plantLevel,
@@ -171,8 +188,53 @@ export default function GardenScreen() {
     }
   };
 
-  const handleFriendPress = (friend: Friend) => {
-    if (friend.id === "user") return;
+  const handleJoinWithCode = async () => {
+    if (!inviteCodeInput.trim()) return;
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setJoinLoading(true);
+
+    try {
+      const { error } = await addFriendByCode(inviteCodeInput.trim());
+      if (error) {
+        setToastMessage("Could not sent request: " + error.message);
+      } else {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        setToastMessage("Friend request sent!");
+        setInviteCodeInput("");
+        setShowInviteModal(false);
+      }
+    } catch (e) {
+      setToastMessage("An error occurred");
+    } finally {
+      setJoinLoading(false);
+    }
+  };
+
+  const handleAcceptRequest = async (requestId: string, friendName: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const { error } = await acceptRequest(requestId);
+    if (error) {
+      setToastMessage("Failed to accept: " + error.message);
+    } else {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setToastMessage(`You are now friends with ${friendName}!`);
+    }
+  };
+
+  const handleRejectRequest = async (userId: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const { error } = await rejectRequest(userId);
+    if (error) {
+      setToastMessage("Failed to reject: " + error.message);
+    }
+  };
+
+  const handleFriendPress = (friend: typeof userMember | Friend) => {
+    // Check if it's the user (either by isUser flag or ID match)
+    const isCurrentUser = ('isUser' in friend && friend.isUser) || friend.id === user?.id;
+
+    if (isCurrentUser) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setSelectedFriend(friend);
     setShowFriendModal(true);
@@ -193,20 +255,29 @@ export default function GardenScreen() {
   };
 
   const sendNudge = useCallback(
-    (userId: string, userName: string) => {
+    async (userId: string, userName: string) => {
       if (nudgedUsers.has(userId)) return;
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       playWaterDrop(); // Play water drop sound for sending rain
 
-      // Mark as nudged
+      // Mark as nudged locally immediately for optimistic UI
       setNudgedUsers((prev) => new Set(prev).add(userId));
 
       // Show toast
       setToastMessage(`You sent rain to ${userName}! +10 XP`);
       setTimeout(() => setToastMessage(null), 2500);
+
+      // Send to cloud
+      if (isAuthenticated) {
+        try {
+          await sendNudgeApi(userId);
+        } catch (e) {
+          console.error("Failed to send nudge", e);
+        }
+      }
     },
-    [nudgedUsers]
+    [nudgedUsers, isAuthenticated]
   );
 
   return (
@@ -251,7 +322,51 @@ export default function GardenScreen() {
             </Text>
           </Animated.View>
 
+
+          {/* Friend Requests Section */}
+          {pendingRequests && pendingRequests.length > 0 && (
+            <Animated.View
+              entering={FadeInUp.delay(120).duration(500)}
+              className="mx-5 mt-4 mb-2"
+            >
+              <Text className="text-sm font-semibold text-sage-800 mb-2">Friend Requests</Text>
+              {pendingRequests.map((request) => (
+                <View key={request.id} className="bg-white rounded-2xl p-3 mb-2 flex-row items-center justify-between shadow-sm">
+                  <View className="flex-row items-center flex-1 mr-2">
+                    <Image
+                      source={{ uri: request.friend?.avatar_url || "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100" }}
+                      className="w-10 h-10 rounded-full bg-sage-100"
+                    />
+                    <View className="ml-3 flex-1">
+                      <Text className="text-sage-900 font-semibold" numberOfLines={1}>
+                        {request.friend?.name || "Unknown"}
+                      </Text>
+                      <Text className="text-sage-500 text-xs">
+                        Wants to join your garden
+                      </Text>
+                    </View>
+                  </View>
+                  <View className="flex-row">
+                    <Pressable
+                      onPress={() => handleRejectRequest(request.friend?.id || "")}
+                      className="w-9 h-9 rounded-full bg-red-50 items-center justify-center mr-2"
+                    >
+                      <X size={18} color="#ef4444" />
+                    </Pressable>
+                    <Pressable
+                      onPress={() => handleAcceptRequest(request.id, request.friend?.name || "")}
+                      className="w-9 h-9 rounded-full bg-sage-500 items-center justify-center"
+                    >
+                      <Check size={18} color="white" />
+                    </Pressable>
+                  </View>
+                </View>
+              ))}
+            </Animated.View>
+          )}
+
           {/* Demo Notice - only show when not authenticated or no cloud friends */}
+          {/* Notice Banner */}
           {(!isAuthenticated || cloudFriends.length === 0) && (
             <Animated.View
               entering={FadeInUp.delay(120).duration(500)}
@@ -261,7 +376,7 @@ export default function GardenScreen() {
                 <Sparkles size={14} color="#778b5f" />
                 <Text className="text-xs text-sage-600 ml-2 flex-1">
                   {isAuthenticated
-                    ? "Sign in to add real friends using invite codes!"
+                    ? "Your garden is empty. Share your invite code to add friends!"
                     : "These are example friends. Sign in to connect with real friends!"}
                 </Text>
               </View>
@@ -314,58 +429,65 @@ export default function GardenScreen() {
           </Animated.View>
 
           {/* Garden Visualization */}
-          <Animated.View
-            entering={FadeInUp.delay(200).duration(800)}
-            className="mt-4 mx-5"
-          >
-            <View className="bg-white/60 rounded-3xl p-4 shadow-sm">
-              <View className="flex-row flex-wrap justify-center">
-                {gridMembers.map((member, index) => {
-                  const wilting = isWilting(member.lastActive);
-                  return (
-                    <Pressable
-                      key={member.id}
-                      onPress={() => handleFriendPress(member as Friend)}
-                      className="w-1/3 items-center py-2"
-                    >
-                      <View className="relative">
-                        <View style={{ opacity: wilting ? 0.5 : 1 }}>
-                          <Plant
-                            stage={getPlantStage(member.plantLevel)}
-                            level={member.plantLevel}
-                            size={80}
-                          />
-                        </View>
-                        {wilting && (
-                          <View
-                            className="absolute -top-1 -right-1 w-6 h-6 rounded-full items-center justify-center bg-sage-200"
-                          >
-                            <Droplet size={14} color="#94a67e" />
-                          </View>
-                        )}
-                        {member.isOnline && !wilting && (
-                          <View className="absolute bottom-0 right-0 w-3 h-3 bg-green-400 rounded-full border-2 border-white" />
-                        )}
-                      </View>
-                      <Text
-                        className={`text-xs font-medium mt-1 ${wilting ? "text-sage-400" : "text-sage-800"
-                          }`}
-                        numberOfLines={1}
-                      >
-                        {member.isUser ? "You" : member.name}
-                      </Text>
-                      <Text
-                        className={`text-[10px] ${wilting ? "text-sage-300" : "text-sage-500"
-                          }`}
-                      >
-                        Lv.{member.plantLevel}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
+          {friendsLoading ? (
+            <View className="mt-8 mb-8 items-center justify-center">
+              <ActivityIndicator size="large" color="#778b5f" />
+              <Text className="text-sage-400 text-sm mt-3">Growing your garden...</Text>
             </View>
-          </Animated.View>
+          ) : (
+            <Animated.View
+              entering={FadeInUp.delay(200).duration(800)}
+              className="mt-4 mx-5"
+            >
+              <View className="bg-white/60 rounded-3xl p-4 shadow-sm">
+                <View className="flex-row flex-wrap justify-center">
+                  {gridMembers.map((member, index) => {
+                    const wilting = isWilting(member.lastActive);
+                    return (
+                      <Pressable
+                        key={member.id}
+                        onPress={() => handleFriendPress(member as Friend)}
+                        className="w-1/3 items-center py-2"
+                      >
+                        <View className="relative">
+                          <View style={{ opacity: wilting ? 0.5 : 1 }}>
+                            <Plant
+                              stage={getPlantStage(member.plantLevel)}
+                              level={member.plantLevel}
+                              size={80}
+                            />
+                          </View>
+                          {wilting && (
+                            <View
+                              className="absolute -top-1 -right-1 w-6 h-6 rounded-full items-center justify-center bg-sage-200"
+                            >
+                              <Droplet size={14} color="#94a67e" />
+                            </View>
+                          )}
+                          {member.isOnline && !wilting && (
+                            <View className="absolute bottom-0 right-0 w-3 h-3 bg-green-400 rounded-full border-2 border-white" />
+                          )}
+                        </View>
+                        <Text
+                          className={`text-xs font-medium mt-1 ${wilting ? "text-sage-400" : "text-sage-800"
+                            }`}
+                          numberOfLines={1}
+                        >
+                          {member.isUser ? "You" : member.name}
+                        </Text>
+                        <Text
+                          className={`text-[10px] ${wilting ? "text-sage-300" : "text-sage-500"
+                            }`}
+                        >
+                          Lv.{member.plantLevel}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            </Animated.View>
+          )}
 
           {/* Grove Care Section */}
           <Animated.View
@@ -523,18 +645,20 @@ export default function GardenScreen() {
       </SafeAreaView>
 
       {/* Toast Notification */}
-      {toastMessage && (
-        <Animated.View
-          entering={FadeIn.duration(300)}
-          exiting={FadeOut.duration(300)}
-          className="absolute bottom-28 left-5 right-5"
-        >
-          <View className="bg-sage-800 rounded-2xl py-4 px-5 flex-row items-center justify-center">
-            <CloudRain size={20} color="#d4dac9" />
-            <Text className="text-cream font-medium ml-2">{toastMessage}</Text>
-          </View>
-        </Animated.View>
-      )}
+      {
+        toastMessage && (
+          <Animated.View
+            entering={FadeIn.duration(300)}
+            exiting={FadeOut.duration(300)}
+            className="absolute bottom-28 left-5 right-5"
+          >
+            <View className="bg-sage-800 rounded-2xl py-4 px-5 flex-row items-center justify-center">
+              <CloudRain size={20} color="#d4dac9" />
+              <Text className="text-cream font-medium ml-2">{toastMessage}</Text>
+            </View>
+          </Animated.View>
+        )
+      }
 
       {/* Invite Modal */}
       <Modal visible={showInviteModal} animationType="slide" transparent>
@@ -615,9 +739,21 @@ export default function GardenScreen() {
                   placeholder="Enter friend's code"
                   placeholderTextColor="#94a67e"
                   className="flex-1 bg-white rounded-xl px-4 py-3 text-sage-900"
+                  value={inviteCodeInput}
+                  onChangeText={setInviteCodeInput}
+                  autoCapitalize="characters"
                 />
-                <Pressable className="ml-3 bg-sage-500 rounded-xl px-6 items-center justify-center">
-                  <Text className="text-white font-semibold">Join</Text>
+                <Pressable
+                  onPress={handleJoinWithCode}
+                  disabled={joinLoading || !inviteCodeInput.trim()}
+                  className={`ml-3 rounded-xl px-6 items-center justify-center ${joinLoading || !inviteCodeInput.trim() ? "bg-sage-300" : "bg-sage-500"
+                    }`}
+                >
+                  {joinLoading ? (
+                    <ActivityIndicator color="white" size="small" />
+                  ) : (
+                    <Text className="text-white font-semibold">Join</Text>
+                  )}
                 </Pressable>
               </View>
             </View>
@@ -775,6 +911,6 @@ export default function GardenScreen() {
           </View>
         </View>
       </Modal>
-    </View>
+    </View >
   );
 }

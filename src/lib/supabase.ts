@@ -47,6 +47,7 @@ export async function signUpWithEmail(email: string, password: string, name: str
         password,
         options: {
             data: { name },
+            emailRedirectTo: 'alma-wellness://',
         },
     });
     return { data, error };

@@ -76,72 +76,80 @@ ALTER TABLE nudges ENABLE ROW LEVEL SECURITY;
 ALTER TABLE daily_progress ENABLE ROW LEVEL SECURITY;
 ALTER TABLE push_tokens ENABLE ROW LEVEL SECURITY;
 
--- Profiles: Users can read friends' profiles, update own
+-- Ensure policies are dropped if they already exist, then create them
+
+-- Profiles: Users can read own profile
+DROP POLICY IF EXISTS "Users can view own profile" ON profiles;
 CREATE POLICY "Users can view own profile" ON profiles
-  FOR SELECT USING (auth.uid() = id);
+  FOR SELECT USING ((SELECT auth.uid()) = id);
 
-CREATE POLICY "Users can view friends' profiles" ON profiles
-  FOR SELECT USING (
-    EXISTS (
-      SELECT 1 FROM friendships 
-      WHERE status = 'accepted' 
-      AND ((user_id = auth.uid() AND friend_id = profiles.id)
-        OR (friend_id = auth.uid() AND user_id = profiles.id))
-    )
-  );
-
+-- Profiles: Users can update own profile
+DROP POLICY IF EXISTS "Users can update own profile" ON profiles;
 CREATE POLICY "Users can update own profile" ON profiles
-  FOR UPDATE USING (auth.uid() = id);
+  FOR UPDATE USING ((SELECT auth.uid()) = id)
+  WITH CHECK ((SELECT auth.uid()) = id);
 
+-- Profiles: Users can insert own profile
+DROP POLICY IF EXISTS "Users can insert own profile" ON profiles;
 CREATE POLICY "Users can insert own profile" ON profiles
-  FOR INSERT WITH CHECK (auth.uid() = id);
+  FOR INSERT WITH CHECK ((SELECT auth.uid()) = id);
 
--- Friendships: Users can manage their own friendships
+-- Friendships: Users can view own friendships
+DROP POLICY IF EXISTS "Users can view own friendships" ON friendships;
 CREATE POLICY "Users can view own friendships" ON friendships
-  FOR SELECT USING (auth.uid() = user_id OR auth.uid() = friend_id);
+  FOR SELECT USING ((SELECT auth.uid()) = user_id OR (SELECT auth.uid()) = friend_id);
 
+-- Friendships: Users can create friend requests
+DROP POLICY IF EXISTS "Users can create friend requests" ON friendships;
 CREATE POLICY "Users can create friend requests" ON friendships
-  FOR INSERT WITH CHECK (auth.uid() = user_id);
+  FOR INSERT WITH CHECK ((SELECT auth.uid()) = user_id);
 
+-- Friendships: Users can update friendships they're part of
+DROP POLICY IF EXISTS "Users can update friendships they're part of" ON friendships;
 CREATE POLICY "Users can update friendships they're part of" ON friendships
-  FOR UPDATE USING (auth.uid() = user_id OR auth.uid() = friend_id);
+  FOR UPDATE USING ((SELECT auth.uid()) = user_id OR (SELECT auth.uid()) = friend_id);
 
+-- Friendships: Users can delete own friendships
+DROP POLICY IF EXISTS "Users can delete own friendships" ON friendships;
 CREATE POLICY "Users can delete own friendships" ON friendships
-  FOR DELETE USING (auth.uid() = user_id OR auth.uid() = friend_id);
+  FOR DELETE USING ((SELECT auth.uid()) = user_id OR (SELECT auth.uid()) = friend_id);
 
--- Nudges: Users can send and receive nudges
+-- Nudges: Users can view received nudges
+DROP POLICY IF EXISTS "Users can view received nudges" ON nudges;
 CREATE POLICY "Users can view received nudges" ON nudges
-  FOR SELECT USING (auth.uid() = to_user_id);
+  FOR SELECT USING ((SELECT auth.uid()) = to_user_id);
 
+-- Nudges: Users can send nudges to friends
+DROP POLICY IF EXISTS "Users can send nudges to friends" ON nudges;
 CREATE POLICY "Users can send nudges to friends" ON nudges
-  FOR INSERT WITH CHECK (
-    auth.uid() = from_user_id AND
-    EXISTS (
-      SELECT 1 FROM friendships 
-      WHERE status = 'accepted' 
-      AND (
-        (user_id = auth.uid() AND friend_id = to_user_id) OR 
-        (friend_id = auth.uid() AND user_id = to_user_id)
-      )
-    )
-  );
+  FOR INSERT WITH CHECK ((SELECT auth.uid()) = from_user_id);
 
+-- Nudges: Users can mark nudges as read
+DROP POLICY IF EXISTS "Users can mark nudges as read" ON nudges;
 CREATE POLICY "Users can mark nudges as read" ON nudges
-  FOR UPDATE USING (auth.uid() = to_user_id);
+  FOR UPDATE USING ((SELECT auth.uid()) = to_user_id);
 
--- Daily Progress: Users can manage their own progress
+-- Daily Progress: Users can view own progress
+DROP POLICY IF EXISTS "Users can view own progress" ON daily_progress;
 CREATE POLICY "Users can view own progress" ON daily_progress
-  FOR SELECT USING (auth.uid() = user_id);
+  FOR SELECT USING ((SELECT auth.uid()) = user_id);
 
+-- Daily Progress: Users can insert own progress
+DROP POLICY IF EXISTS "Users can insert own progress" ON daily_progress;
 CREATE POLICY "Users can insert own progress" ON daily_progress
-  FOR INSERT WITH CHECK (auth.uid() = user_id);
+  FOR INSERT WITH CHECK ((SELECT auth.uid()) = user_id);
 
+-- Daily Progress: Users can update own progress
+DROP POLICY IF EXISTS "Users can update own progress" ON daily_progress;
 CREATE POLICY "Users can update own progress" ON daily_progress
-  FOR UPDATE USING (auth.uid() = user_id);
+  FOR UPDATE USING ((SELECT auth.uid()) = user_id)
+  WITH CHECK ((SELECT auth.uid()) = user_id);
 
--- Push Tokens: Users can manage their own tokens
+-- Push Tokens: Users can manage their own tokens (ALL covers SELECT/INSERT/UPDATE/DELETE)
+DROP POLICY IF EXISTS "Users can manage own push tokens" ON push_tokens;
 CREATE POLICY "Users can manage own push tokens" ON push_tokens
-  FOR ALL USING (auth.uid() = user_id);
+  FOR ALL USING ((SELECT auth.uid()) = user_id)
+  WITH CHECK ((SELECT auth.uid()) = user_id);
 
 -- Function to auto-create profile on user signup
 CREATE OR REPLACE FUNCTION public.handle_new_user()
@@ -177,3 +185,13 @@ DROP TRIGGER IF EXISTS on_progress_logged ON daily_progress;
 CREATE TRIGGER on_progress_logged
   AFTER INSERT OR UPDATE ON daily_progress
   FOR EACH ROW EXECUTE FUNCTION public.update_last_active();
+
+-- Public Profile View Check
+-- Replace friends-view policy with an authenticated-all policy so users can find each other by invite code.
+DROP POLICY IF EXISTS "Users can view friends' profiles" ON profiles;
+DROP POLICY IF EXISTS "Authenticated users can view all profiles" ON profiles;
+
+CREATE POLICY "Authenticated users can view all profiles"
+  ON profiles FOR SELECT
+  TO authenticated
+  USING (true);

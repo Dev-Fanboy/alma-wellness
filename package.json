@@ -4,11 +4,12 @@
   "main": "index.ts",
   "scripts": {
     "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
     "web": "DARK_MODE=class expo start --web",
     "lint": "expo lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "postinstall": "patch-package"
   },
   "dependencies": {
     "@babel/plugin-proposal-export-namespace-from": "^7.18.9",
@@ -177,7 +178,8 @@
     "react-native-reanimated": "3.17.4"
   },
   "patchedDependencies": {
-    "react-native@0.79.6": "patches/react-native@0.79.6.patch",
-    "expo-asset@11.1.5": "patches/expo-asset@11.1.5.patch"
+    "react-native@0.79.6": "patches/react-native+0.79.6.patch",
+    "expo-asset@11.1.5": "patches/expo-asset+11.1.5.patch",
+    "reanimated-tab-view@0.4.0": "patches/reanimated-tab-view+0.4.0.patch"
   }
 }

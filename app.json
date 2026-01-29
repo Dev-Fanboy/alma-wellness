@@ -20,11 +20,19 @@
       "infoPlist": {
         "NSCameraUsageDescription": "Alma needs camera access to scan invite QR codes.",
         "NSPhotoLibraryUsageDescription": "Alma needs photo access to save your vision board images.",
-        "NSMicrophoneUsageDescription": "Alma needs microphone access for voice journaling features."
+        "NSMicrophoneUsageDescription": "Alma needs microphone access for voice journaling features.",
+        "NSCalendarsUsageDescription": "Alma needs calendar access to schedule your wellness activities and reminders.",
+        "NSContactsUsageDescription": "Alma needs contacts access to help you find and invite friends to your wellness circle.",
+        "NSLocationWhenInUseUsageDescription": "Alma needs location access to suggest relevant local wellness rewards and events.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "plugins": [
       [
@@ -37,6 +45,12 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "a25cc2b4-63b9-48e1-a1b6-c048b04b5b3d"
+      }
     }
   }
 }

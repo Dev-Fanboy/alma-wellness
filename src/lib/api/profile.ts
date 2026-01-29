@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { sendPushNotification } from "@/lib/api/notifications";
 
 export interface Profile {
     id: string;
@@ -193,11 +194,23 @@ export async function sendFriendRequestByCode(inviteCode: string) {
         .select()
         .single();
 
+    if (!error) {
+        // Send push notification to the friend
+        const userName = user.user_metadata.name || "A friend";
+        await sendPushNotification(
+            friend.id,
+            "New Friend Request",
+            `${userName} wants to join your garden! 🌱`
+        );
+    }
+
     return { data, error };
 }
 
 // Accept friend request
 export async function acceptFriendRequest(friendshipId: string) {
+    const { data: { user } } = await supabase.auth.getUser();
+
     const { data, error } = await supabase
         .from("friendships")
         .update({ status: "accepted" })
@@ -205,15 +218,33 @@ export async function acceptFriendRequest(friendshipId: string) {
         .select()
         .single();
 
+    if (!error && data && user) {
+        // Find the OTHER user ID (the one who sent the request)
+        // If I am user_id, friend is friend_id. If I am friend_id, friend is user_id.
+        // Wait, 'user_id' is requester, 'friend_id' is recipient.
+        // If I accepted, I am likely 'friend_id'.
+        const otherUserId = data.user_id === user.id ? data.friend_id : data.user_id;
+
+        const userName = user.user_metadata.name || "A friend";
+        await sendPushNotification(
+            otherUserId,
+            "Friend Request Accepted!",
+            `${userName} joined your garden! 🌻`
+        );
+    }
+
     return { data, error };
 }
 
-// Remove friend
-export async function removeFriend(friendshipId: string) {
+// Remove friend by User ID
+export async function removeFriend(friendUserId: string) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: { message: "Not authenticated" } };
+
     const { error } = await supabase
         .from("friendships")
         .delete()
-        .eq("id", friendshipId);
+        .or(`and(user_id.eq.${user.id},friend_id.eq.${friendUserId}),and(user_id.eq.${friendUserId},friend_id.eq.${user.id})`);
 
     return { error };
 }

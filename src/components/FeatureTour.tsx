@@ -41,7 +41,7 @@ interface FeatureTourProps {
 
 interface TourSlide {
   id: string;
-  icon: React.ComponentType<{ size: number; color: string }>;
+  icon: React.ComponentType<{ size: number; color: string; strokeWidth?: number }>;
   title: string;
   description: string;
   tip: string;
@@ -96,7 +96,7 @@ const TOUR_SLIDES: TourSlide[] = [
     icon: Users,
     title: "Community Garden",
     description:
-      "Connect with friends and see everyone's plants in a shared garden. Compete on the leaderboard and motivate each other!",
+      "Connect with friends and see everyone's plants grow in a shared garden. Support each other's journey and blossom together.",
     tip: "Visit the Garden tab to invite friends",
     accentColor: "#7fb3d3",
   },
@@ -123,7 +123,6 @@ const TOUR_SLIDES: TourSlide[] = [
 export function FeatureTour({ onComplete }: FeatureTourProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const flatListRef = useRef<FlatList>(null);
-  const scrollX = useSharedValue(0);
 
   const isLastSlide = currentIndex === TOUR_SLIDES.length - 1;
 
@@ -153,109 +152,113 @@ export function FeatureTour({ onComplete }: FeatureTourProps) {
     }
   ).current;
 
-  const viewabilityConfig = useRef({
-    itemVisiblePercentThreshold: 50,
-  }).current;
-
+  // Render Item with Zen Luxury changes
   const renderSlide = ({ item, index }: { item: TourSlide; index: number }) => {
     const Icon = item.icon;
 
+    // Slower, more relaxed entrance animations
     return (
-      <View style={{ width: SCREEN_WIDTH }} className="flex-1 px-6">
-        <View className="flex-1 justify-center items-center">
-          {/* Icon or Plant */}
+      <View style={{ width: SCREEN_WIDTH }} className="flex-1 px-8 justify-center">
+        {/* Icon/Image Container - Increased spacing */}
+        <View className="items-center justify-center mb-12 min-h-[220px]">
           {item.showPlant ? (
             <Animated.View
-              entering={FadeInUp.delay(200).duration(600)}
-              className="mb-6"
+              entering={FadeInUp.delay(300).duration(1000).springify().damping(20)}
             >
-              <Plant
-                stage={item.plantStage || "seed"}
-                level={item.plantStage === "blooming" ? 15 : 1}
-                size={180}
-              />
+              <View className="bg-sage-50/50 rounded-full p-8">
+                <Plant
+                  stage={item.plantStage || "seed"}
+                  level={item.plantStage === "blooming" ? 15 : 1}
+                  size={200}
+                />
+              </View>
             </Animated.View>
           ) : (
             <Animated.View
-              entering={FadeInUp.delay(200).duration(600)}
-              className="mb-8"
+              entering={FadeInUp.delay(300).duration(1000).springify().damping(20)}
             >
               <View
-                className="w-24 h-24 rounded-full items-center justify-center"
-                style={{ backgroundColor: item.accentColor + "20" }}
+                className="w-40 h-40 rounded-full items-center justify-center shadow-lg shadow-sage-200/50"
+                style={{ backgroundColor: "#ffffff" }}
               >
-                <Icon size={48} color={item.accentColor} />
+                <View
+                  className="w-32 h-32 rounded-full items-center justify-center opacity-20 absolute"
+                  style={{ backgroundColor: item.accentColor }}
+                />
+                <Icon size={64} color={item.accentColor} strokeWidth={1.5} />
               </View>
             </Animated.View>
           )}
+        </View>
 
-          {/* Title */}
-          <Animated.Text
-            entering={FadeInUp.delay(300).duration(500)}
-            className="text-3xl font-bold text-sage-900 text-center leading-tight mb-4"
+        {/* Text Content - Serif styling for title, airy description */}
+        <Animated.View
+          entering={FadeInUp.delay(500).duration(800)}
+          className="items-center"
+        >
+          <Text
+            className="text-4xl font-medium text-sage-900 text-center leading-tight mb-6"
+            style={{ fontFamily: "System" }} // Ideally would use a serif font stack if available
           >
             {item.title}
-          </Animated.Text>
+          </Text>
 
-          {/* Description */}
-          <Animated.Text
-            entering={FadeInUp.delay(400).duration(500)}
-            className="text-base text-sage-600 text-center leading-relaxed mb-6 px-4"
+          <Text
+            className="text-lg text-sage-600/90 text-center leading-relaxed mb-10 font-normal"
           >
             {item.description}
-          </Animated.Text>
+          </Text>
+        </Animated.View>
 
-          {/* Tip card */}
-          <Animated.View
-            entering={FadeInUp.delay(500).duration(500)}
-            className="bg-white/80 rounded-2xl px-5 py-3 shadow-sm"
-          >
-            <View className="flex-row items-center">
-              <Sparkles size={16} color={item.accentColor} />
-              <Text
-                className="ml-2 text-sm font-medium"
-                style={{ color: item.accentColor }}
-              >
-                {item.tip}
-              </Text>
-            </View>
-          </Animated.View>
-        </View>
+        {/* Tip - Softer styling */}
+        <Animated.View
+          entering={FadeInUp.delay(700).duration(800)}
+          className="bg-white/90 rounded-2xl px-6 py-4 shadow-sm border border-sage-50 self-center"
+        >
+          <View className="flex-row items-center space-x-3">
+            <Sparkles size={16} color={item.accentColor} />
+            <Text
+              className="text-sm font-medium tracking-wide"
+              style={{ color: item.accentColor }}
+            >
+              {item.tip.toUpperCase()}
+            </Text>
+          </View>
+        </Animated.View>
       </View>
     );
   };
 
   return (
     <View className="flex-1 bg-cream">
+      {/* Background Gradient - Softer */}
       <LinearGradient
-        colors={["#d4dac9", "#e8ebe3", "#fdfbf7"]}
+        colors={["#e8ebe3", "#fdfbf7", "#fdfbf7"]}
+        locations={[0, 0.4, 1]}
         style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0 }}
       />
 
       <SafeAreaView className="flex-1">
-        {/* Skip button */}
-        <View className="absolute top-4 right-4 z-10">
-          <SafeAreaView edges={["top"]}>
-            <Pressable
-              onPress={handleSkip}
-              className="flex-row items-center px-4 py-2"
-            >
-              <Text className="text-sage-500 text-base mr-1">Skip</Text>
-              <X size={18} color="#94a67e" />
-            </Pressable>
-          </SafeAreaView>
-        </View>
+        {/* Header Navigation */}
+        <View className="flex-row justify-between items-center px-6 pt-2 z-10">
+          <View className="flex-row space-x-1">
+            {TOUR_SLIDES.map((_, index) => (
+              <Animated.View
+                key={index}
+                className={`h-1.5 rounded-full transition-all duration-500 ${index === currentIndex
+                  ? "bg-sage-600 w-8"
+                  : "bg-sage-200 w-2"
+                  }`}
+              />
+            ))}
+          </View>
 
-        {/* Progress dots */}
-        <View className="flex-row justify-center pt-4 pb-2">
-          {TOUR_SLIDES.map((_, index) => (
-            <Animated.View
-              key={index}
-              className={`h-2 rounded-full mx-1 ${
-                index === currentIndex ? "bg-sage-600 w-6" : "bg-sage-300 w-2"
-              }`}
-            />
-          ))}
+          <Pressable
+            onPress={handleSkip}
+            className="bg-white/80 px-4 py-2 rounded-full shadow-sm"
+          >
+            <Text className="text-sage-600 font-medium text-sm">Skip</Text>
+          </Pressable>
         </View>
 
         {/* Slides */}
@@ -268,7 +271,7 @@ export function FeatureTour({ onComplete }: FeatureTourProps) {
           pagingEnabled
           showsHorizontalScrollIndicator={false}
           onViewableItemsChanged={onViewableItemsChanged}
-          viewabilityConfig={viewabilityConfig}
+          viewabilityConfig={{ itemVisiblePercentThreshold: 50 }}
           bounces={false}
           scrollEventThrottle={16}
           getItemLayout={(_, index) => ({
@@ -278,22 +281,16 @@ export function FeatureTour({ onComplete }: FeatureTourProps) {
           })}
         />
 
-        {/* Bottom navigation */}
-        <View className="px-8 pb-8">
-          {/* Page indicator text */}
-          <Text className="text-center text-sage-400 text-sm mb-4">
-            {currentIndex + 1} of {TOUR_SLIDES.length}
-          </Text>
-
-          {/* Main CTA button */}
+        {/* Bottom Action Area */}
+        <View className="p-8 pb-10">
           <Pressable
             onPress={handleNext}
-            className="bg-sage-600 rounded-2xl py-4 flex-row items-center justify-center"
+            className="bg-sage-800 rounded-3xl py-5 shadow-lg shadow-sage-900/10 flex-row items-center justify-center active:opacity-90"
           >
-            <Text className="text-white font-semibold text-lg mr-2">
-              {isLastSlide ? "Get Started" : "Next"}
+            <Text className="text-white font-semibold text-lg tracking-wide mr-2">
+              {isLastSlide ? "Begin Journey" : "Next"}
             </Text>
-            <ChevronRight size={20} color="white" strokeWidth={2.5} />
+            {!isLastSlide && <ChevronRight size={20} color="white" strokeWidth={2} />}
           </Pressable>
         </View>
       </SafeAreaView>

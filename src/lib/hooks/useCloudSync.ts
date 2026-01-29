@@ -29,6 +29,8 @@ export function useCloudSync() {
     const setUserAvatar = useWellnessStore((s) => s.setUserAvatar);
     const setUserAgeRange = useWellnessStore((s) => s.setUserAgeRange);
     const setUserWellnessFocus = useWellnessStore((s) => s.setUserWellnessFocus);
+    const setInviteCode = useWellnessStore((s) => s.setInviteCode);
+    const inviteCode = useWellnessStore((s) => s.inviteCode);
 
     // Get today's progress
     const getTodayProgress = () => {
@@ -63,6 +65,10 @@ export function useCloudSync() {
                 if (cloudProfile.wellness_focus && !userWellnessFocus) {
                     setUserWellnessFocus(cloudProfile.wellness_focus);
                 }
+                // Sync invite code (server authority)
+                if (cloudProfile.invite_code && cloudProfile.invite_code !== inviteCode) {
+                    setInviteCode(cloudProfile.invite_code);
+                }
             }
         } catch (error) {
             console.error("Error pulling from cloud:", error);
@@ -78,6 +84,16 @@ export function useCloudSync() {
         if (now - lastSyncRef.current < 30000) return;
         lastSyncRef.current = now;
 
+        // Get fresh state to avoid stale closures
+        const currentGenericState = useWellnessStore.getState();
+        const freshInviteCode = currentGenericState.inviteCode;
+
+        // Don't sync if invite code is missing or default/invalid
+        if (!freshInviteCode || freshInviteCode.length < 4) {
+            console.log("Skipping sync - invalid invite code");
+            return;
+        }
+
         try {
             // Update profile
             await updateProfile({
@@ -85,6 +101,7 @@ export function useCloudSync() {
                 avatar_url: userAvatar,
                 age_range: userAgeRange,
                 wellness_focus: userWellnessFocus,
+                invite_code: freshInviteCode, // Ensure local invite code is synced to cloud
             });
 
             // Sync daily progress

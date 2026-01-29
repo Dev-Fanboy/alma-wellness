@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from "react";
-import { View } from "react-native";
+import React, { useEffect, useState, useRef } from "react";
+import { View, AppState, AppStateStatus } from "react-native";
 import { Stack, useRouter, useSegments, useRootNavigationState } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
@@ -11,7 +11,7 @@ import { FeatureTour } from "@/components/FeatureTour";
 import { useWellnessStore } from "@/lib/store";
 import { initializeNotifications } from "@/lib/notifications";
 import { soundManager } from "@/lib/sounds";
-import { AuthProvider } from "@/lib/AuthContext";
+import { AuthProvider, useAuth } from "@/lib/AuthContext";
 import { CloudSyncProvider } from "@/lib/CloudSyncProvider";
 
 // NOTE: KeyboardProvider from react-native-keyboard-controller is disabled for Expo Go compatibility
@@ -39,37 +39,55 @@ function NavigationHandler() {
 function NavigationHandlerInner() {
   const router = useRouter();
   const segments = useSegments();
-
-  const hasCompletedOnboarding = useWellnessStore(
-    (s) => s.hasCompletedOnboarding
-  );
+  const hasCompletedOnboarding = useWellnessStore((s) => s.hasCompletedOnboarding);
   const hasSeenTour = useWellnessStore((s) => s.hasSeenTour);
   const setHasSeenTour = useWellnessStore((s) => s.setHasSeenTour);
-
   const [showTour, setShowTour] = useState(false);
+
+  const { user, loading } = useAuth();
+  const [isMounted, setIsMounted] = useState(false);
 
   // Handle navigation based on onboarding state
   useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isMounted || loading) return;
+
+    const inAuth = segments[0] === "auth";
     const inOnboarding = segments[0] === "onboarding";
     const inMainApp = segments[0] === "(tabs)";
 
-    // First launch or hasn't completed onboarding - go to onboarding
-    if (!hasCompletedOnboarding && !inOnboarding) {
-      router.replace("/onboarding");
+    // 1. Check Auth FIRST (User must be signed in)
+    if (!user) {
+      if (!inAuth) {
+        router.replace("/auth");
+      }
       return;
     }
 
-    // Completed onboarding but on onboarding screen - go to main app
-    if (hasCompletedOnboarding && inOnboarding) {
+    // 2. Then Check Onboarding (Signed-in user must have completed onboarding)
+    if (!hasCompletedOnboarding) {
+      if (!inOnboarding) {
+        router.replace("/onboarding");
+      }
+      return;
+    }
+
+    // Handled auth and onboarding checks above
+
+    // Authenticated and onboarded
+    if (inAuth || inOnboarding) {
       router.replace("/(tabs)");
       return;
     }
 
     // Show tour if onboarding is complete but tour hasn't been seen
-    if (hasCompletedOnboarding && !hasSeenTour && inMainApp) {
+    if (inMainApp && !hasSeenTour) {
       setShowTour(true);
     }
-  }, [hasCompletedOnboarding, hasSeenTour, segments]);
+  }, [hasCompletedOnboarding, hasSeenTour, segments, user, loading, isMounted]);
 
   if (showTour) {
     return (
@@ -110,6 +128,17 @@ function RootLayoutNav() {
     soundManager.init(); // Initialize sound manager
     setIsReady(true);
     SplashScreen.hideAsync();
+
+    // Listen for app state changes to trigger daily reset when coming from background
+    const subscription = AppState.addEventListener("change", (nextAppState) => {
+      if (nextAppState === "active") {
+        checkAndResetDaily();
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
   }, []);
 
   // Watch for all goals complete OR level up

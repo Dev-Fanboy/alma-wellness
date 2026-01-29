@@ -174,6 +174,23 @@ export function GoalCard({ goal, onIncrement, onComplete, onUpdateProgress }: Go
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
 
+  const handleTimeSelect = async (time: string) => {
+    setReminderTime(time);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    if (reminderEnabled) {
+      await saveGoalNotificationSetting({
+        goalId: goal.id,
+        goalName: goal.name,
+        enabled: true,
+        reminderTime: time,
+        useInterval: goal.type === "hydration",
+        intervalHours: 4,
+        endTime: "20:00"
+      });
+    }
+  };
+
   const scale = useSharedValue(1);
   const checkScale = useSharedValue(1);
   const progress = goal.current / goal.target;
@@ -503,10 +520,10 @@ export function GoalCard({ goal, onIncrement, onComplete, onUpdateProgress }: Go
                   {TIME_OPTIONS.map((time) => (
                     <Pressable
                       key={time}
-                      onPress={() => selectTime(time)}
+                      onPress={() => handleTimeSelect(time)}
                       className={`mr-2 mb-2 px-3 py-1.5 rounded-lg border ${reminderTime === time
-                          ? "bg-sage-500 border-sage-500"
-                          : "bg-sage-50 border-sage-200"
+                        ? "bg-sage-500 border-sage-500"
+                        : "bg-sage-50 border-sage-200"
                         }`}
                     >
                       <Text

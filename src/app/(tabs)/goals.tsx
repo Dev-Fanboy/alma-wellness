@@ -493,29 +493,37 @@ export default function GoalsScreen() {
 
     setShowNotificationModal(false);
     setNewlyAddedGoal(null);
-    if (!goalToEdit) {
-      // Only clear preset if we are not in edit mode (to preserve context if needed, though usually fine)
+
+    // If we were editing, re-open the edit modal
+    if (goalToEdit) {
+      setTimeout(() => setShowEditModal(true), 300);
+    } else {
+      // Only clear preset if we are not in edit mode
       setSelectedPreset(null);
+      // Reset interval settings for next goal
+      setSelectedTime("09:00");
+      setUseInterval(false);
+      setIntervalHours(4);
+      setEndTime("21:00");
     }
-    // Reset interval settings for next goal
-    setSelectedTime("09:00");
-    setUseInterval(false);
-    setIntervalHours(4);
-    setEndTime("21:00");
   };
-
-
 
   const handleSkipNotification = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setShowNotificationModal(false);
     setNewlyAddedGoal(null);
-    setSelectedPreset(null);
-    // Reset interval settings for next goal
-    setSelectedTime("09:00");
-    setUseInterval(false);
-    setIntervalHours(4);
-    setEndTime("21:00");
+
+    // If we were editing, re-open the edit modal
+    if (goalToEdit) {
+      setTimeout(() => setShowEditModal(true), 300);
+    } else {
+      setSelectedPreset(null);
+      // Reset interval settings for next goal
+      setSelectedTime("09:00");
+      setUseInterval(false);
+      setIntervalHours(4);
+      setEndTime("21:00");
+    }
   };
 
   const handleDeletePress = (goal: Goal) => {
@@ -1074,9 +1082,10 @@ export default function GoalsScreen() {
                 {/* Notification Settings Button */}
                 <Pressable
                   onPress={() => {
-                    // Stack notification modal on top of edit modal
-                    // Do not close edit modal here to preserve state
-                    setShowNotificationModal(true);
+                    // Close edit modal first to avoid stacked modals (which can cause issues)
+                    // State (goalToEdit) is preserved because we don't call setGoalToEdit(null)
+                    setShowEditModal(false);
+                    setTimeout(() => setShowNotificationModal(true), 300);
                   }}
                   className="bg-white rounded-2xl p-4 mb-4 flex-row items-center justify-between"
                 >

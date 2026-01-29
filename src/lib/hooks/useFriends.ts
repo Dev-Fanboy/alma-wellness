@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/AuthContext";
 import { getFriends, getPendingRequests, sendFriendRequestByCode, acceptFriendRequest, removeFriend as removeFriendApi, Profile, Friendship } from "@/lib/api/profile";
 import { subscribeToFriendUpdates } from "@/lib/api/nudges";
@@ -97,22 +98,50 @@ export function useFriends() {
 
     // Accept a friend request
     const acceptRequest = useCallback(async (friendshipId: string) => {
+        // Optimistic update
+        const requestToAccept = pendingRequests.find(r => r.id === friendshipId);
+        if (requestToAccept && requestToAccept.friend) {
+            // Remove from pending
+            setPendingRequests(prev => prev.filter(r => r.id !== friendshipId));
+
+            // Add to friends list (optimistically)
+            const newFriend = transformProfile(requestToAccept.friend as Profile);
+            setFriends(prev => [...prev, newFriend]);
+        }
+
         const { error } = await acceptFriendRequest(friendshipId);
-        if (!error) {
-            await fetchFriends();
+
+        if (error) {
+            // Revert changes on error
             await fetchPendingRequests();
+            await fetchFriends();
+        } else {
+            // Confirm with server state in background
+            fetchFriends();
+            fetchPendingRequests();
         }
         return { error };
-    }, [fetchFriends, fetchPendingRequests]);
+    }, [pendingRequests, fetchFriends, fetchPendingRequests]);
+
 
     // Remove a friend
-    const removeFriend = useCallback(async (friendshipId: string) => {
-        const { error } = await removeFriendApi(friendshipId);
+    const removeFriend = useCallback(async (friendUserId: string) => {
+        const { error } = await removeFriendApi(friendUserId);
         if (!error) {
-            setFriends((prev) => prev.filter((f) => f.id !== friendshipId));
+            setFriends((prev) => prev.filter((f) => f.id !== friendUserId));
         }
         return { error };
     }, []);
+
+    // Reject a friend request
+    const rejectRequest = useCallback(async (friendUserId: string) => {
+        const { error } = await removeFriendApi(friendUserId);
+        if (!error) {
+            setPendingRequests((prev) => prev.filter((r) => r.user_id !== friendUserId && r.friend_id !== friendUserId));
+            await fetchPendingRequests();
+        }
+        return { error };
+    }, [fetchPendingRequests]);
 
     // Initial fetch
     useEffect(() => {
@@ -121,6 +150,45 @@ export function useFriends() {
             fetchPendingRequests();
         }
     }, [user, authLoading, fetchFriends, fetchPendingRequests]);
+
+    // Subscribe to incoming friend requests and updates
+    useEffect(() => {
+        if (!user) return;
+
+        const channel = supabase
+            .channel("friendship_changes")
+            .on(
+                "postgres_changes",
+                {
+                    event: "*",
+                    schema: "public",
+                    table: "friendships",
+                    filter: `friend_id=eq.${user.id}`, // Listen for requests sent TO me
+                },
+                () => {
+                    fetchPendingRequests();
+                    fetchFriends(); // In case a request was accepted
+                }
+            )
+            .on(
+                "postgres_changes",
+                {
+                    event: "*",
+                    schema: "public",
+                    table: "friendships",
+                    filter: `user_id=eq.${user.id}`, // Listen for updates to requests I sent
+                },
+                () => {
+                    fetchFriends(); // If my request was accepted
+                    fetchPendingRequests();
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [user, fetchFriends, fetchPendingRequests]);
 
     // Subscribe to real-time friend updates
     useEffect(() => {
@@ -148,6 +216,7 @@ export function useFriends() {
         isAuthenticated: !!user,
         addFriendByCode,
         acceptRequest,
+        rejectRequest,
         removeFriend,
         refresh: fetchFriends,
     };

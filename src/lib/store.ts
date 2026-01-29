@@ -127,6 +127,7 @@ interface WellnessState {
   setUserAvatar: (avatar: string) => void;
   setUserAgeRange: (ageRange: string) => void;
   setUserWellnessFocus: (focus: string) => void;
+  setInviteCode: (code: string) => void;
   setGoals: (goals: Goal[]) => void;
   addGoal: (goal: Omit<Goal, "id" | "current">) => void;
   updateGoal: (id: string, updates: Partial<Omit<Goal, "id">>) => void;
@@ -390,6 +391,7 @@ export const useWellnessStore = create<WellnessState>()(
       setUserAvatar: (avatar) => set({ userAvatar: avatar }),
       setUserAgeRange: (ageRange) => set({ userAgeRange: ageRange }),
       setUserWellnessFocus: (focus) => set({ userWellnessFocus: focus }),
+      setInviteCode: (code) => set({ inviteCode: code }),
 
       setGoals: (goals) => set({ goals }),
 
@@ -611,7 +613,8 @@ export const useWellnessStore = create<WellnessState>()(
           ),
         })),
 
-      resetOnboarding: () => set({ hasCompletedOnboarding: false }),
+      resetOnboarding: () =>
+        set({ hasCompletedOnboarding: false, hasSeenTour: false }),
 
       // Friend management
       addFriend: (friend) =>
@@ -722,6 +725,7 @@ export const useWellnessStore = create<WellnessState>()(
         journalEntries: state.journalEntries,
         achievements: state.achievements,
         sunStones: state.sunStones,
+        inviteCode: state.inviteCode,
       }),
     }
   )

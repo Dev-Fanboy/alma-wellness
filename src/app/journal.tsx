@@ -15,7 +15,7 @@ import Animated, { FadeInUp } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
 import { X, Send, Smile, Meh, Frown, Heart } from "lucide-react-native";
 import { useWellnessStore } from "@/lib/store";
-import { playSuccess, playTap, playChime } from "@/lib/sounds";
+import { playSuccess } from "@/lib/sounds";
 
 const PROMPTS = [
   "What are you grateful for today?",
@@ -86,8 +86,8 @@ export default function JournalScreen() {
   const handleMoodSelect = useCallback((mood: MoodId) => {
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    } catch (e) {}
-    playChime(); // Play gentle chime on mood selection
+    } catch (e) { }
+    // Sound removed as per request
     setSelectedMood(mood);
   }, []);
 
@@ -116,9 +116,8 @@ export default function JournalScreen() {
             <Pressable
               onPress={handleSave}
               disabled={!content.trim()}
-              className={`w-10 h-10 rounded-full items-center justify-center ${
-                content.trim() ? "bg-sage-500" : "bg-sage-200"
-              }`}
+              className={`w-10 h-10 rounded-full items-center justify-center ${content.trim() ? "bg-sage-500" : "bg-sage-200"
+                }`}
             >
               <Send size={18} color="white" />
             </Pressable>
@@ -151,9 +150,8 @@ export default function JournalScreen() {
                 {/* Great */}
                 <Pressable
                   onPress={() => handleMoodSelect("great")}
-                  className={`flex-1 mx-1 py-3 rounded-xl items-center ${
-                    selectedMood === "great" ? "bg-white shadow-sm" : "bg-sage-50"
-                  }`}
+                  className={`flex-1 mx-1 py-3 rounded-xl items-center ${selectedMood === "great" ? "bg-white shadow-sm" : "bg-sage-50"
+                    }`}
                   style={
                     selectedMood === "great"
                       ? { borderWidth: 2, borderColor: MOOD_COLORS.great }
@@ -165,11 +163,10 @@ export default function JournalScreen() {
                     color={selectedMood === "great" ? MOOD_COLORS.great : "#94a67e"}
                   />
                   <Text
-                    className={`text-xs mt-1 ${
-                      selectedMood === "great"
+                    className={`text-xs mt-1 ${selectedMood === "great"
                         ? "font-semibold text-sage-800"
                         : "text-sage-500"
-                    }`}
+                      }`}
                   >
                     Great
                   </Text>
@@ -178,9 +175,8 @@ export default function JournalScreen() {
                 {/* Good */}
                 <Pressable
                   onPress={() => handleMoodSelect("good")}
-                  className={`flex-1 mx-1 py-3 rounded-xl items-center ${
-                    selectedMood === "good" ? "bg-white shadow-sm" : "bg-sage-50"
-                  }`}
+                  className={`flex-1 mx-1 py-3 rounded-xl items-center ${selectedMood === "good" ? "bg-white shadow-sm" : "bg-sage-50"
+                    }`}
                   style={
                     selectedMood === "good"
                       ? { borderWidth: 2, borderColor: MOOD_COLORS.good }
@@ -192,11 +188,10 @@ export default function JournalScreen() {
                     color={selectedMood === "good" ? MOOD_COLORS.good : "#94a67e"}
                   />
                   <Text
-                    className={`text-xs mt-1 ${
-                      selectedMood === "good"
+                    className={`text-xs mt-1 ${selectedMood === "good"
                         ? "font-semibold text-sage-800"
                         : "text-sage-500"
-                    }`}
+                      }`}
                   >
                     Good
                   </Text>
@@ -205,9 +200,8 @@ export default function JournalScreen() {
                 {/* Okay */}
                 <Pressable
                   onPress={() => handleMoodSelect("okay")}
-                  className={`flex-1 mx-1 py-3 rounded-xl items-center ${
-                    selectedMood === "okay" ? "bg-white shadow-sm" : "bg-sage-50"
-                  }`}
+                  className={`flex-1 mx-1 py-3 rounded-xl items-center ${selectedMood === "okay" ? "bg-white shadow-sm" : "bg-sage-50"
+                    }`}
                   style={
                     selectedMood === "okay"
                       ? { borderWidth: 2, borderColor: MOOD_COLORS.okay }
@@ -219,11 +213,10 @@ export default function JournalScreen() {
                     color={selectedMood === "okay" ? MOOD_COLORS.okay : "#94a67e"}
                   />
                   <Text
-                    className={`text-xs mt-1 ${
-                      selectedMood === "okay"
+                    className={`text-xs mt-1 ${selectedMood === "okay"
                         ? "font-semibold text-sage-800"
                         : "text-sage-500"
-                    }`}
+                      }`}
                   >
                     Okay
                   </Text>
@@ -232,9 +225,8 @@ export default function JournalScreen() {
                 {/* Low */}
                 <Pressable
                   onPress={() => handleMoodSelect("low")}
-                  className={`flex-1 mx-1 py-3 rounded-xl items-center ${
-                    selectedMood === "low" ? "bg-white shadow-sm" : "bg-sage-50"
-                  }`}
+                  className={`flex-1 mx-1 py-3 rounded-xl items-center ${selectedMood === "low" ? "bg-white shadow-sm" : "bg-sage-50"
+                    }`}
                   style={
                     selectedMood === "low"
                       ? { borderWidth: 2, borderColor: MOOD_COLORS.low }
@@ -246,11 +238,10 @@ export default function JournalScreen() {
                     color={selectedMood === "low" ? MOOD_COLORS.low : "#94a67e"}
                   />
                   <Text
-                    className={`text-xs mt-1 ${
-                      selectedMood === "low"
+                    className={`text-xs mt-1 ${selectedMood === "low"
                         ? "font-semibold text-sage-800"
                         : "text-sage-500"
-                    }`}
+                      }`}
                   >
                     Low
                   </Text>
