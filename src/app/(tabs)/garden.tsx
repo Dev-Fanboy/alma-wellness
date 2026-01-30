@@ -9,6 +9,7 @@ import {
   Share,
   TextInput,
   ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -46,6 +47,8 @@ import { playWaterDrop, playSuccess, playTap } from "@/lib/sounds";
 import { useFriends } from "@/lib/hooks/useFriends";
 import { useAuth } from "@/lib/AuthContext";
 import { sendNudge as sendNudgeApi } from "@/lib/api/nudges";
+import { generateShareMessage } from "@/lib/deepLinks";
+import { useFocusEffect } from "expo-router";
 
 // Weekly target for the grove
 const WEEKLY_TARGET_XP = 2500;
@@ -58,6 +61,8 @@ export default function GardenScreen() {
   const plantPoints = useWellnessStore((s) => s.plantPoints);
   const currentStreak = useWellnessStore((s) => s.currentStreak);
   const inviteCode = useWellnessStore((s) => s.inviteCode);
+  const pendingInviteCode = useWellnessStore((s) => s.pendingInviteCode);
+  const setPendingInviteCode = useWellnessStore((s) => s.setPendingInviteCode);
   const removeFriendLocal = useWellnessStore((s) => s.removeFriend);
 
   // Cloud friends hook
@@ -70,8 +75,11 @@ export default function GardenScreen() {
     acceptRequest,
     rejectRequest,
     removeFriend: removeFriendCloud,
-    loading: friendsLoading
+    loading: friendsLoading,
+    refreshAll,
   } = useFriends();
+
+  const [refreshing, setRefreshing] = useState(false);
 
   // Use cloud friends if authenticated, otherwise use demo friends
   const friends = isAuthenticated
@@ -107,6 +115,33 @@ export default function GardenScreen() {
       return () => clearTimeout(timer);
     }
   }, [toastMessage]);
+
+  // Handle pending invite codes from deep links
+  useEffect(() => {
+    if (pendingInviteCode) {
+      // Pre-fill the invite code input and open the modal
+      setInviteCodeInput(pendingInviteCode);
+      setShowInviteModal(true);
+      // Clear the pending code so it doesn't trigger again
+      setPendingInviteCode(null);
+    }
+  }, [pendingInviteCode, setPendingInviteCode]);
+
+  // Refresh friends when tab comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      if (isAuthenticated) {
+        refreshAll();
+      }
+    }, [isAuthenticated, refreshAll])
+  );
+
+  // Pull-to-refresh handler
+  const onRefresh = React.useCallback(async () => {
+    setRefreshing(true);
+    await refreshAll();
+    setRefreshing(false);
+  }, [refreshAll]);
 
   // Calculate weekly points for user
   const userWeeklyPoints = Math.floor(plantPoints * 0.15);
@@ -181,7 +216,7 @@ export default function GardenScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
       await Share.share({
-        message: `Join me on Alma Wellness! Use my invite code: ${inviteCode}\n\nGrow your wellness garden together with friends.`,
+        message: generateShareMessage(inviteCode, userName),
       });
     } catch (error) {
       // Error handling
@@ -297,6 +332,14 @@ export default function GardenScreen() {
           className="flex-1"
           contentContainerStyle={{ paddingBottom: 100 }}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor="#778b5f"
+              colors={["#778b5f"]}
+            />
+          }
         >
           {/* Header */}
           <Animated.View

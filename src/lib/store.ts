@@ -121,6 +121,7 @@ interface WellnessState {
   friendRequests: FriendRequest[];
   communityChallenges: CommunityChallenge[];
   inviteCode: string;
+  pendingInviteCode: string | null; // Deep link invite waiting to be processed
 
   // Actions
   setUserName: (name: string) => void;
@@ -128,6 +129,7 @@ interface WellnessState {
   setUserAgeRange: (ageRange: string) => void;
   setUserWellnessFocus: (focus: string) => void;
   setInviteCode: (code: string) => void;
+  setPendingInviteCode: (code: string | null) => void;
   setGoals: (goals: Goal[]) => void;
   addGoal: (goal: Omit<Goal, "id" | "current">) => void;
   updateGoal: (id: string, updates: Partial<Omit<Goal, "id">>) => void;
@@ -187,7 +189,7 @@ const DEFAULT_GOALS: Goal[] = [
   {
     id: "3",
     type: "meditation",
-    name: "Mindfulness",
+    name: "Meditation",
     icon: "Brain",
     target: 10,
     unit: "minutes",
@@ -385,6 +387,7 @@ export const useWellnessStore = create<WellnessState>()(
       friendRequests: [] as FriendRequest[],
       communityChallenges: [] as CommunityChallenge[],
       inviteCode: "ALMA" + Math.random().toString(36).substring(2, 8).toUpperCase(),
+      pendingInviteCode: null, // For deep link invites
       sunStones: 3, // Start with 3 sun stones
 
       setUserName: (name) => set({ userName: name }),
@@ -392,6 +395,7 @@ export const useWellnessStore = create<WellnessState>()(
       setUserAgeRange: (ageRange) => set({ userAgeRange: ageRange }),
       setUserWellnessFocus: (focus) => set({ userWellnessFocus: focus }),
       setInviteCode: (code) => set({ inviteCode: code }),
+      setPendingInviteCode: (code) => set({ pendingInviteCode: code }),
 
       setGoals: (goals) => set({ goals }),
 

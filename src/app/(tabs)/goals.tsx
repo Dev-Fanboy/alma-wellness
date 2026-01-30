@@ -84,7 +84,7 @@ const GOAL_PRESETS = [
   },
   {
     type: "meditation" as GoalType,
-    name: "Mindfulness",
+    name: "Meditation",
     icon: "Brain",
     target: 10,
     unit: "minutes",
@@ -593,7 +593,8 @@ export default function GoalsScreen() {
 
   const handleSaveEdit = () => {
     if (!goalToEdit) return;
-    const targetValue = editUseSlider ? editSliderValue : parseInt(editGoalData.target, 10);
+    // Always use the text input value from editGoalData
+    const targetValue = parseInt(editGoalData.target, 10);
     if (!editGoalData.name || !targetValue || !editGoalData.unit) return;
 
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

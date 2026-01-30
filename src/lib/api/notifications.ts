@@ -93,7 +93,6 @@ export async function sendPushNotification(userId: string, title: string, body: 
             .eq("user_id", userId);
 
         if (error || !tokens || tokens.length === 0) {
-            console.log("No push token found for user", userId);
             return;
         }
 

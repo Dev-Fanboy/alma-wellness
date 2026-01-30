@@ -350,6 +350,11 @@ export function GoalCard({ goal, onIncrement, onComplete, onUpdateProgress }: Go
                 </Text>
               )}
             </View>
+            {!isComplete && goal.current === 0 && (
+              <Text className="text-xs text-sage-400 mt-1 italic">
+                💡 Hold to mark complete
+              </Text>
+            )}
           </View>
 
           {/* Action button */}

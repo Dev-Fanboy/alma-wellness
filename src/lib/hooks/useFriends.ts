@@ -165,7 +165,7 @@ export function useFriends() {
                     table: "friendships",
                     filter: `friend_id=eq.${user.id}`, // Listen for requests sent TO me
                 },
-                () => {
+                (payload) => {
                     fetchPendingRequests();
                     fetchFriends(); // In case a request was accepted
                 }
@@ -178,7 +178,7 @@ export function useFriends() {
                     table: "friendships",
                     filter: `user_id=eq.${user.id}`, // Listen for updates to requests I sent
                 },
-                () => {
+                (payload) => {
                     fetchFriends(); // If my request was accepted
                     fetchPendingRequests();
                 }
@@ -208,6 +208,11 @@ export function useFriends() {
         return unsubscribe;
     }, [user, friends.length]);
 
+    // Combined refresh for pull-to-refresh
+    const refreshAll = useCallback(async () => {
+        await Promise.all([fetchFriends(), fetchPendingRequests()]);
+    }, [fetchFriends, fetchPendingRequests]);
+
     return {
         friends,
         pendingRequests,
@@ -219,5 +224,7 @@ export function useFriends() {
         rejectRequest,
         removeFriend,
         refresh: fetchFriends,
+        refreshPendingRequests: fetchPendingRequests,
+        refreshAll,
     };
 }

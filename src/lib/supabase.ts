@@ -27,9 +27,17 @@ const ExpoSecureStoreAdapter = {
     },
 };
 
-// Get Supabase config with fallbacks
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || "https://dfumitashsrvqpprkamg.supabase.co";
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRmdW1pdGFzaHNydnFwcHJrYW1nIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkzODE1NjksImV4cCI6MjA4NDk1NzU2OX0.ffE0qXvE5tgrDnAvetLh4wIFSlEClJ3XRPkYyEAlnoc";
+// Get Supabase config from environment variables
+// IMPORTANT: These must be set in .env file - do NOT commit secrets to the repo
+const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error(
+        "Missing Supabase configuration. " +
+        "Please create a .env file with EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY"
+    );
+}
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     auth: {

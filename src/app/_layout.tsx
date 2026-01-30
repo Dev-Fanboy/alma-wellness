@@ -13,6 +13,7 @@ import { initializeNotifications } from "@/lib/notifications";
 import { soundManager } from "@/lib/sounds";
 import { AuthProvider, useAuth } from "@/lib/AuthContext";
 import { CloudSyncProvider } from "@/lib/CloudSyncProvider";
+import { getInitialDeepLink, subscribeToDeepLinks, ParsedDeepLink } from "@/lib/deepLinks";
 
 // NOTE: KeyboardProvider from react-native-keyboard-controller is disabled for Expo Go compatibility
 // Re-enable it when using a development build with native modules linked
@@ -112,6 +113,7 @@ function RootLayoutNav() {
   const checkAndResetDaily = useWellnessStore((s) => s.checkAndResetDaily);
   const goals = useWellnessStore((s) => s.goals);
   const plantLevel = useWellnessStore((s) => s.plantLevel);
+  const setPendingInviteCode = useWellnessStore((s) => s.setPendingInviteCode);
 
   const [showCelebration, setShowCelebration] = useState(false);
   const [previousAllComplete, setPreviousAllComplete] = useState(false);
@@ -140,6 +142,25 @@ function RootLayoutNav() {
       subscription.remove();
     };
   }, []);
+
+  // Deep link handling
+  useEffect(() => {
+    const handleDeepLink = (link: ParsedDeepLink) => {
+      if (link.type === "invite") {
+        setPendingInviteCode(link.code);
+      }
+    };
+
+    // Check for initial deep link (cold start)
+    getInitialDeepLink().then((link) => {
+      if (link) handleDeepLink(link);
+    });
+
+    // Subscribe to incoming deep links (warm start)
+    const unsubscribe = subscribeToDeepLinks(handleDeepLink);
+
+    return unsubscribe;
+  }, [setPendingInviteCode]);
 
   // Watch for all goals complete OR level up
   useEffect(() => {

@@ -90,7 +90,6 @@ export function useCloudSync() {
 
         // Don't sync if invite code is missing or default/invalid
         if (!freshInviteCode || freshInviteCode.length < 4) {
-            console.log("Skipping sync - invalid invite code");
             return;
         }
 

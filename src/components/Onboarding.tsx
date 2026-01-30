@@ -81,7 +81,7 @@ const GOAL_SUGGESTIONS: GoalSuggestion[] = [
   {
     id: "meditation",
     type: "meditation",
-    name: "Mindfulness",
+    name: "Meditation",
     description: "Find your center",
     icon: Brain,
     target: 10,
