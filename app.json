@@ -31,6 +31,8 @@
       "edgeToEdgeEnabled": true,
       "permissions": [
         "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO"
       ]
     },
@@ -51,6 +53,12 @@
       "eas": {
         "projectId": "a25cc2b4-63b9-48e1-a1b6-c048b04b5b3d"
       }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/a25cc2b4-63b9-48e1-a1b6-c048b04b5b3d"
     }
   }
 }
