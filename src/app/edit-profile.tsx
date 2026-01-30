@@ -18,6 +18,8 @@ import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import { ArrowLeft, Camera, Check, User, ImagePlus, Palette } from "lucide-react-native";
 import { useWellnessStore } from "@/lib/store";
+import { updateProfile } from "@/lib/api/profile";
+import { useAuth } from "@/lib/AuthContext";
 
 const AVATAR_OPTIONS = [
   "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=200",
@@ -32,6 +34,7 @@ const AVATAR_OPTIONS = [
 
 export default function EditProfileScreen() {
   const router = useRouter();
+  const { user } = useAuth();
   const userName = useWellnessStore((s) => s.userName);
   const userAvatar = useWellnessStore((s) => s.userAvatar);
   const setUserName = useWellnessStore((s) => s.setUserName);
@@ -112,16 +115,25 @@ export default function EditProfileScreen() {
     }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!name.trim()) return;
 
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
+    // Update local state
     if (name !== userName) {
       setUserName(name.trim());
     }
     if (avatar !== userAvatar) {
       setUserAvatar(avatar);
+    }
+
+    // Sync to cloud if authenticated
+    if (user) {
+      await updateProfile({
+        name: name.trim(),
+        avatar_url: avatar,
+      });
     }
 
     router.back();
@@ -157,9 +169,8 @@ export default function EditProfileScreen() {
             <Pressable
               onPress={handleSave}
               disabled={!hasChanges || !name.trim()}
-              className={`w-10 h-10 rounded-full items-center justify-center ${
-                hasChanges && name.trim() ? "bg-sage-500" : "bg-sage-200"
-              }`}
+              className={`w-10 h-10 rounded-full items-center justify-center ${hasChanges && name.trim() ? "bg-sage-500" : "bg-sage-200"
+                }`}
             >
               <Check size={20} color="white" />
             </Pressable>
@@ -252,11 +263,10 @@ export default function EditProfileScreen() {
                     >
                       <Image
                         source={{ uri: avatarUrl }}
-                        className={`w-full aspect-square rounded-full ${
-                          avatar === avatarUrl
-                            ? "border-3 border-sage-500"
-                            : "border-2 border-sage-100"
-                        }`}
+                        className={`w-full aspect-square rounded-full ${avatar === avatarUrl
+                          ? "border-3 border-sage-500"
+                          : "border-2 border-sage-100"
+                          }`}
                       />
                     </Pressable>
                   ))}

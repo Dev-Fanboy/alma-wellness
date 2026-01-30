@@ -10,6 +10,7 @@ import { Plant } from "@/components/Plant";
 import { GoalCard } from "@/components/GoalCard";
 import { ShareModal } from "@/components/ShareModal";
 import { MorningBriefing } from "@/components/MorningBriefing";
+import { MilestoneStreakBadge } from "@/components/MilestoneStreakBadge";
 import { useWellnessStore } from "@/lib/store";
 import { checkAndResetDailyGoals } from "@/utils/dailyReset";
 import { useFonts, CinzelDecorative_700Bold } from "@expo-google-fonts/cinzel-decorative";
@@ -127,18 +128,16 @@ export default function HomeScreen() {
 
               {/* Streak badge - pressable to share */}
               {currentStreak > 0 && (
-                <Pressable
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                    setShareModalVisible(true);
-                  }}
-                  className="bg-sage-100 rounded-full px-3 py-2 flex-row items-center active:scale-95"
-                >
-                  <Flame size={14} color="#778b5f" />
-                  <Text className="text-sage-700 font-medium ml-1 text-sm">
-                    {currentStreak}
-                  </Text>
-                </Pressable>
+                <View className="items-end">
+                  {/* Milestone Pulse Effect */}
+                  <MilestoneStreakBadge
+                    streak={currentStreak}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                      setShareModalVisible(true);
+                    }}
+                  />
+                </View>
               )}
             </View>
           </Animated.View>
