@@ -3,7 +3,7 @@
     "name": "Alma Wellness",
     "slug": "alma-wellness",
     "scheme": "alma-wellness",
-    "version": "2.0.0",
+    "version": "2.0.1",
     "orientation": "portrait",
     "icon": "./public/app-logo.png",
     "userInterfaceStyle": "automatic",
@@ -43,7 +43,17 @@
           "cameraPermission": "Alma needs camera access to scan invite QR codes."
         }
       ],
-      "expo-router"
+      [
+        "expo-updates",
+        {
+          "enabled": false
+        }
+      ],
+      "expo-router",
+      "expo-asset",
+      "expo-video",
+      "expo-web-browser",
+      "react-native-edge-to-edge"
     ],
     "experiments": {
       "typedRoutes": true
@@ -54,11 +64,8 @@
         "projectId": "a25cc2b4-63b9-48e1-a1b6-c048b04b5b3d"
       }
     },
-    "runtimeVersion": {
-      "policy": "appVersion"
-    },
     "updates": {
-      "url": "https://u.expo.dev/a25cc2b4-63b9-48e1-a1b6-c048b04b5b3d"
+      "enabled": false
     }
   }
 }

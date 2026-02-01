@@ -1,13 +1,20 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { Session, User } from "@supabase/supabase-js";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase, onAuthStateChange, getSession } from "@/lib/supabase";
 import { registerForPushNotifications, unregisterPushNotifications } from "@/lib/api/notifications";
+import * as Notifications from "expo-notifications";
+
+const NOTIFICATION_PROMPT_KEY = "@alma_notification_prompt_shown";
 
 interface AuthContextType {
     session: Session | null;
     user: User | null;
     loading: boolean;
     signOut: () => Promise<void>;
+    showNotificationPrompt: boolean;
+    handleAllowNotifications: () => Promise<void>;
+    handleSkipNotifications: () => void;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -15,11 +22,53 @@ const AuthContext = createContext<AuthContextType>({
     user: null,
     loading: true,
     signOut: async () => { },
+    showNotificationPrompt: false,
+    handleAllowNotifications: async () => { },
+    handleSkipNotifications: () => { },
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
     const [session, setSession] = useState<Session | null>(null);
     const [loading, setLoading] = useState(true);
+    const [showNotificationPrompt, setShowNotificationPrompt] = useState(false);
+
+    // Check if we should show the notification prompt
+    const checkAndShowNotificationPrompt = async () => {
+        try {
+            // Check if we've already shown the prompt
+            const hasShownPrompt = await AsyncStorage.getItem(NOTIFICATION_PROMPT_KEY);
+            if (hasShownPrompt) {
+                // Already shown, just try to register silently if permission was granted
+                registerForPushNotifications();
+                return;
+            }
+
+            // Check if permission is already granted
+            const { status } = await Notifications.getPermissionsAsync();
+            if (status === "granted") {
+                // Already have permission, register and mark as shown
+                registerForPushNotifications();
+                await AsyncStorage.setItem(NOTIFICATION_PROMPT_KEY, "true");
+                return;
+            }
+
+            // Show our custom prompt
+            setShowNotificationPrompt(true);
+        } catch (error) {
+            console.log("Error checking notification prompt:", error);
+        }
+    };
+
+    const handleAllowNotifications = async () => {
+        setShowNotificationPrompt(false);
+        await AsyncStorage.setItem(NOTIFICATION_PROMPT_KEY, "true");
+        await registerForPushNotifications();
+    };
+
+    const handleSkipNotifications = () => {
+        setShowNotificationPrompt(false);
+        AsyncStorage.setItem(NOTIFICATION_PROMPT_KEY, "true");
+    };
 
     useEffect(() => {
         // Get initial session
@@ -27,9 +76,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setSession(sess);
             setLoading(false);
 
-            // Register for push notifications if logged in
+            // Check for notification prompt if logged in
             if (sess?.user) {
-                registerForPushNotifications();
+                checkAndShowNotificationPrompt();
             }
         });
 
@@ -38,9 +87,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setSession(sess);
             setLoading(false);
 
-            // Register for push when user signs in
+            // Show notification prompt when user signs in
             if (event === "SIGNED_IN" && sess?.user) {
-                registerForPushNotifications();
+                // Small delay to let the UI settle after sign-in
+                setTimeout(() => {
+                    checkAndShowNotificationPrompt();
+                }, 1000);
             }
         });
 
@@ -62,6 +114,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 user: session?.user || null,
                 loading,
                 signOut: handleSignOut,
+                showNotificationPrompt,
+                handleAllowNotifications,
+                handleSkipNotifications,
             }}
         >
             {children}
@@ -82,3 +137,4 @@ export function useIsAuthenticated() {
     const { session, loading } = useAuth();
     return { isAuthenticated: !!session, loading };
 }
+

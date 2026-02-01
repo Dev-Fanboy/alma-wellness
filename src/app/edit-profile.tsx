@@ -20,6 +20,7 @@ import { ArrowLeft, Camera, Check, User, ImagePlus, Palette } from "lucide-react
 import { useWellnessStore } from "@/lib/store";
 import { updateProfile } from "@/lib/api/profile";
 import { useAuth } from "@/lib/AuthContext";
+import { uploadAvatar, saveAvatarLocally, isLocalFile, isPresetAvatar } from "@/lib/avatarUtils";
 
 const AVATAR_OPTIONS = [
   "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=200",
@@ -118,25 +119,55 @@ export default function EditProfileScreen() {
   const handleSave = async () => {
     if (!name.trim()) return;
 
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setIsUploading(true);
 
-    // Update local state
-    if (name !== userName) {
-      setUserName(name.trim());
-    }
-    if (avatar !== userAvatar) {
-      setUserAvatar(avatar);
-    }
+    try {
+      let finalAvatarUrl = avatar;
 
-    // Sync to cloud if authenticated
-    if (user) {
-      await updateProfile({
-        name: name.trim(),
-        avatar_url: avatar,
-      });
-    }
+      // Handle avatar changes
+      if (avatar !== userAvatar) {
+        // Check if it's a local file (from camera or library)
+        if (isLocalFile(avatar) && !isPresetAvatar(avatar)) {
+          // Save locally first for immediate persistence
+          const localSavedUri = await saveAvatarLocally(avatar);
+          if (localSavedUri) {
+            finalAvatarUrl = localSavedUri;
+          }
 
-    router.back();
+          // Upload to cloud if authenticated
+          if (user) {
+            const cloudUrl = await uploadAvatar(avatar);
+            if (cloudUrl) {
+              // Prefer cloud URL for better sync across devices
+              finalAvatarUrl = cloudUrl;
+            }
+          }
+        }
+        // For preset avatars (unsplash URLs), just use directly
+        setUserAvatar(finalAvatarUrl);
+      }
+
+      // Update name
+      if (name !== userName) {
+        setUserName(name.trim());
+      }
+
+      // Sync to cloud if authenticated
+      if (user) {
+        await updateProfile({
+          name: name.trim(),
+          avatar_url: finalAvatarUrl,
+        });
+      }
+
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      router.back();
+    } catch (error) {
+      console.error("Error saving profile:", error);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const handleBack = () => {
@@ -168,11 +199,19 @@ export default function EditProfileScreen() {
             </Text>
             <Pressable
               onPress={handleSave}
-              disabled={!hasChanges || !name.trim()}
-              className={`w-10 h-10 rounded-full items-center justify-center ${hasChanges && name.trim() ? "bg-sage-500" : "bg-sage-200"
+              disabled={!hasChanges || !name.trim() || isUploading}
+              className={`w-10 h-10 rounded-full items-center justify-center ${isUploading
+                  ? "bg-sage-400"
+                  : hasChanges && name.trim()
+                    ? "bg-sage-500"
+                    : "bg-sage-200"
                 }`}
             >
-              <Check size={20} color="white" />
+              {isUploading ? (
+                <Text className="text-white text-xs">...</Text>
+              ) : (
+                <Check size={20} color="white" />
+              )}
             </Pressable>
           </View>
 

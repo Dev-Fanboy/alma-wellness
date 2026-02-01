@@ -23,7 +23,7 @@ const SOUND_URLS = {
 
   // Ambient - nature and spa inspired  
   natureChime: "https://assets.mixkit.co/active_storage/sfx/2516/2516-preview.mp3", // Gentle wind chime
-  stoneClick: "https://assets.mixkit.co/active_storage/sfx/2007/2007-preview.mp3", // Wood hard hit (sounds like stone click)
+  stoneClick: "https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3", // Soft gentle click
 };
 
 export type SoundType = keyof typeof SOUND_URLS;
@@ -125,4 +125,4 @@ export const playCelebration = () => soundManager.play("celebration", 0.4);
 export const playLevelUp = () => soundManager.play("levelUp", 0.35);
 export const playSwoosh = () => soundManager.play("swoosh", 0.15);
 export const playNatureChime = () => soundManager.play("natureChime", 0.25);
-export const playStoneClick = () => soundManager.play("stoneClick", 0.25);
+export const playStoneClick = () => soundManager.play("stoneClick", 0.15); // Softer volume for gentle click

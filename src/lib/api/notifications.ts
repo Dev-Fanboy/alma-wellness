@@ -56,18 +56,21 @@ export async function registerForPushNotifications(): Promise<string | null> {
 
 // Remove push token on logout
 export async function unregisterPushNotifications() {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
     try {
-        const tokenData = await Notifications.getExpoPushTokenAsync();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const tokenData = await Notifications.getExpoPushTokenAsync({
+            projectId: process.env.EXPO_PUBLIC_PROJECT_ID,
+        });
         await supabase
             .from("push_tokens")
             .delete()
             .eq("user_id", user.id)
             .eq("token", tokenData.data);
     } catch (error) {
-        console.log("Error unregistering push token:", error);
+        // Don't let push token errors block sign out
+        console.log("Error unregistering push token (non-blocking):", error);
     }
 }
 

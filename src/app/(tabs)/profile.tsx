@@ -28,12 +28,15 @@ import {
   Download,
   LogIn,
   LogOut,
+  X,
+  Calendar,
 } from "lucide-react-native";
 import { useWellnessStore, Achievement } from "@/lib/store";
 import { Plant } from "@/components/Plant";
 import { ShareModal } from "@/components/ShareModal";
 import { soundManager, playTap, playChime } from "@/lib/sounds";
 import { useAuth } from "@/lib/AuthContext";
+import { isAvatarValid } from "@/lib/avatarUtils";
 
 const ICON_MAP: Record<
   string,
@@ -62,10 +65,21 @@ export default function ProfileScreen() {
   const resetAllData = useWellnessStore((s) => s.resetAllData);
 
   const [showResetModal, setShowResetModal] = useState(false);
+  const [showSignOutModal, setShowSignOutModal] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
   const [shareModalVisible, setShareModalVisible] = useState(false);
   const [selectedAchievement, setSelectedAchievement] = useState<Achievement | null>(null);
+
   const [soundsEnabled, setSoundsEnabled] = useState(true);
+  const [selectedDay, setSelectedDay] = useState<{
+    date: string;
+    day: string;
+    fullDayName: string;
+    goalsCompleted: number;
+    totalGoals: number;
+    pointsEarned: number;
+    isToday: boolean;
+  } | null>(null);
 
   // Auth state
   const { user, signOut } = useAuth();
@@ -78,6 +92,17 @@ export default function ProfileScreen() {
     };
     initSounds();
   }, []);
+
+  // Validate avatar file on mount and when it changes
+  useEffect(() => {
+    const validateAvatar = async () => {
+      if (userAvatar) {
+        const valid = await isAvatarValid(userAvatar);
+        setAvatarError(!valid);
+      }
+    };
+    validateAvatar();
+  }, [userAvatar]);
 
   const handleSoundToggle = async (value: boolean) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -269,14 +294,34 @@ export default function ProfileScreen() {
       const isToday = dateStr === today.toISOString().split("T")[0];
       const isPast = date < today && !isToday;
 
+      const fullDayName = date.toLocaleDateString("en-US", { weekday: "long" });
+
       return {
         day,
+        fullDayName,
         isToday,
         hasData: !!historyEntry,
         goalsCompleted: historyEntry?.goalsCompleted ?? 0,
         totalGoals: historyEntry?.totalGoals ?? 0,
         isPast,
+        fullDate: dateStr,
       };
+    });
+  };
+
+  const handleDayPress = (data: any) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    // Find full history entry to get points
+    const historyEntry = dailyHistory.find((h) => h.date === data.fullDate);
+
+    setSelectedDay({
+      date: data.fullDate,
+      day: data.day,
+      fullDayName: data.fullDayName,
+      goalsCompleted: data.goalsCompleted,
+      totalGoals: data.totalGoals,
+      pointsEarned: historyEntry?.pointsEarned || 0,
+      isToday: data.isToday,
     });
   };
 
@@ -489,17 +534,26 @@ export default function ProfileScreen() {
             entering={FadeInUp.delay(400).duration(600)}
             className="px-5 mt-6"
           >
-            <View className="flex-row items-center mb-3">
-              <TrendingUp size={20} color="#778b5f" />
-              <Text className="ml-2 text-lg font-semibold text-sage-900">
-                This Week
+            <View className="flex-row items-center justify-between mb-3">
+              <View className="flex-row items-center">
+                <TrendingUp size={20} color="#778b5f" />
+                <Text className="ml-2 text-lg font-semibold text-sage-900">
+                  This Week
+                </Text>
+              </View>
+              <Text className="text-xs text-sage-400">
+                Tap day for details
               </Text>
             </View>
 
             <View className="bg-white rounded-2xl p-4">
               <View className="flex-row justify-between">
                 {weekData.map((data, index) => (
-                  <View key={index} className="items-center">
+                  <Pressable
+                    key={index}
+                    className="items-center"
+                    onPress={() => handleDayPress(data)}
+                  >
                     <View
                       className={`w-8 h-8 rounded-full items-center justify-center ${data.isToday
                         ? "bg-sage-500"
@@ -526,7 +580,7 @@ export default function ProfileScreen() {
                         {data.goalsCompleted}
                       </Text>
                     )}
-                  </View>
+                  </Pressable>
                 ))}
               </View>
             </View>
@@ -609,7 +663,7 @@ export default function ProfileScreen() {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   playTap();
                   if (user) {
-                    signOut();
+                    setShowSignOutModal(true);
                   } else {
                     router.push("/auth");
                   }
@@ -696,6 +750,56 @@ export default function ProfileScreen() {
         </View>
       </Modal>
 
+      {/* Sign Out Confirmation Modal */}
+      <Modal visible={showSignOutModal} animationType="fade" transparent>
+        <View className="flex-1 bg-black/50 justify-center items-center px-6">
+          <View className="bg-cream rounded-3xl p-6 w-full max-w-sm">
+            <View className="items-center mb-5">
+              <View className="w-16 h-16 rounded-2xl bg-amber-50 items-center justify-center mb-3">
+                <LogOut size={32} color="#d97706" />
+              </View>
+              <Text className="text-xl font-bold text-sage-900 text-center">
+                Sign Out?
+              </Text>
+              <Text className="text-sm text-sage-600 text-center mt-2">
+                Your progress is saved to the cloud. You can sign back in anytime to continue your wellness journey.
+              </Text>
+            </View>
+
+            <View className="flex-row mt-2">
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setShowSignOutModal(false);
+                }}
+                className="flex-1 py-3 mr-2 rounded-xl bg-sage-100"
+              >
+                <Text className="text-sage-700 font-semibold text-center">
+                  Cancel
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={async () => {
+                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                  setShowSignOutModal(false);
+                  try {
+                    await signOut();
+                    router.replace("/auth");
+                  } catch (error) {
+                    console.error("Sign out error:", error);
+                  }
+                }}
+                className="flex-1 py-3 ml-2 rounded-xl bg-amber-500"
+              >
+                <Text className="text-white font-semibold text-center">
+                  Sign Out
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Share Achievement Modal */}
       <ShareModal
         visible={shareModalVisible}
@@ -710,6 +814,65 @@ export default function ProfileScreen() {
         streakCount={currentStreak}
         longestStreak={longestStreak}
       />
+      {/* Day Summary Modal */}
+      <Modal
+        visible={!!selectedDay}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSelectedDay(null)}
+      >
+        <Pressable
+          className="flex-1 bg-black/50 justify-center items-center px-4"
+          onPress={() => setSelectedDay(null)}
+        >
+          <Pressable
+            className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-xl relative"
+            onPress={(e) => e.stopPropagation()}
+          >
+            <Pressable
+              className="absolute top-4 right-4 w-8 h-8 rounded-full bg-sage-50 items-center justify-center z-10"
+              onPress={() => setSelectedDay(null)}
+              hitSlop={8}
+            >
+              <X size={16} color="#778b5f" />
+            </Pressable>
+
+            <View className="items-center mb-6">
+              <View className="w-12 h-12 rounded-full bg-sage-100 items-center justify-center mb-3">
+                <Calendar size={24} color="#5c6e4a" />
+              </View>
+              <Text className="text-xl font-bold text-sage-900">
+                Summary
+              </Text>
+              <Text className="text-sage-500 text-sm mt-1">
+                {selectedDay?.fullDayName} • {selectedDay?.date}
+              </Text>
+            </View>
+
+            <View className="space-y-4">
+              <View className="flex-row items-center justify-between bg-sage-50 rounded-2xl p-4 mb-3">
+                <View className="flex-row items-center">
+                  <Trophy size={20} color="#eab308" />
+                  <Text className="text-sage-700 font-semibold ml-3">Goals Completed</Text>
+                </View>
+                <Text className="text-xl font-bold text-sage-900">
+                  {selectedDay?.goalsCompleted}/{selectedDay?.totalGoals}
+                </Text>
+              </View>
+
+              <View className="flex-row items-center justify-between bg-sage-50 rounded-2xl p-4">
+                <View className="flex-row items-center">
+                  <Sparkles size={20} color="#778b5f" />
+                  <Text className="text-sage-700 font-semibold ml-3">Points Earned</Text>
+                </View>
+                <Text className="text-xl font-bold text-sage-900">
+                  +{selectedDay?.pointsEarned || 0} XP
+                </Text>
+              </View>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }

@@ -54,9 +54,20 @@ export function useCloudSync() {
                 if (!userName && cloudProfile.name) {
                     setUserName(cloudProfile.name);
                 }
-                // Use cloud avatar if different default
-                if (cloudProfile.avatar_url && cloudProfile.avatar_url !== userAvatar) {
-                    setUserAvatar(cloudProfile.avatar_url);
+                // Use cloud avatar ONLY if:
+                // 1. Cloud has a valid avatar URL
+                // 2. Local avatar is a default Unsplash placeholder OR empty
+                // This prevents overwriting user's custom uploaded photos
+                const isLocalDefault = !userAvatar || userAvatar.includes("unsplash.com");
+                const cloudHasRealAvatar = cloudProfile.avatar_url &&
+                    cloudProfile.avatar_url.length > 0 &&
+                    !cloudProfile.avatar_url.includes("unsplash.com");
+
+                if (cloudProfile.avatar_url && (isLocalDefault || cloudHasRealAvatar)) {
+                    // Only update if cloud has a better avatar (uploaded vs default)
+                    if (cloudHasRealAvatar || (isLocalDefault && cloudProfile.avatar_url !== userAvatar)) {
+                        setUserAvatar(cloudProfile.avatar_url);
+                    }
                 }
                 // Sync age range and wellness focus
                 if (cloudProfile.age_range && !userAgeRange) {

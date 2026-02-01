@@ -39,6 +39,7 @@ import {
   Apple,
   Wind,
   Sun,
+  Users,
 } from "lucide-react-native";
 import { Plant } from "@/components/Plant";
 import { useWellnessStore, GoalType } from "@/lib/store";
@@ -183,7 +184,7 @@ const WELLNESS_FOCUS = [
   { id: "mindful", label: "Mindfulness", emoji: "🧘" },
 ];
 
-// Streamlined 4-step flow for intentional onboarding
+// Streamlined 5-step flow for intentional onboarding
 const STEPS = [
   {
     id: "welcome",
@@ -191,6 +192,14 @@ const STEPS = [
     title: "",
     subtitle: "Your mindful companion for intentional living",
     showLogo: true,
+  },
+  {
+    id: "community",
+    icon: Users,
+    title: "Join Our\nWellness Community",
+    subtitle: "Connect with like-minded individuals on your journey to holistic wellbeing",
+    showLogo: false,
+    hasCollage: true,
   },
   {
     id: "about-you",
@@ -375,6 +384,18 @@ export function Onboarding({ onComplete }: OnboardingProps) {
                       <Animated.View style={breatheStyle} className="mt-4">
                         <Plant stage="blooming" level={15} size={200} />
                       </Animated.View>
+                    </View>
+                  ) : step.hasCollage ? (
+                    <View className="items-center w-full">
+                      <Image
+                        source={require("../../public/alma-collage.jpg")}
+                        style={{
+                          width: SCREEN_WIDTH - 48,
+                          height: (SCREEN_WIDTH - 48) * 0.875,
+                          borderRadius: 20,
+                        }}
+                        resizeMode="cover"
+                      />
                     </View>
                   ) : !step.hasGoalSelection && !step.hasProfileCollection ? (
                     <View className="w-24 h-24 rounded-full bg-sage-500/15 items-center justify-center mb-8">

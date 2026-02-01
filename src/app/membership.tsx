@@ -7,6 +7,7 @@ import {
   Image,
   Modal,
   Linking,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -25,6 +26,7 @@ import Animated, {
   Extrapolation,
 } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
+import { useQuery } from "@tanstack/react-query";
 import {
   ArrowLeft,
   Sparkles,
@@ -41,11 +43,22 @@ import {
   X,
   ExternalLink,
   RotateCcw,
+  RefreshCw,
+  Lock,
 } from "lucide-react-native";
 import { useWellnessStore } from "@/lib/store";
 import { useEffect } from "react";
 import QRCode from "react-native-qrcode-svg";
 import { useAuth } from "@/lib/AuthContext";
+import { getPartnerDiscounts, PartnerDiscount } from "@/lib/api/discounts";
+
+// Category icon mapping
+const CATEGORY_ICONS: Record<string, React.ComponentType<{ size: number; color: string }>> = {
+  "Spa & Wellness": Flower2,
+  "Fitness": Dumbbell,
+  "Beauty": Scissors,
+  "Hospitality": Hotel,
+};
 
 interface PartnerBusiness {
   id: string;
@@ -57,71 +70,43 @@ interface PartnerBusiness {
   image: string;
   location: string;
   hours: string;
+  minLevelRequired: number;
 }
 
-const PARTNER_BUSINESSES: PartnerBusiness[] = [
-  {
-    id: "1",
-    name: "Serenity Spa",
-    category: "Spa & Wellness",
-    icon: Flower2,
-    discount: "20% OFF",
-    description: "Massage, facials & body treatments",
-    image: "https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=400",
-    location: "Downtown",
-    hours: "9am - 8pm",
-  },
-  {
-    id: "2",
-    name: "FitLife Gym",
-    category: "Fitness",
-    icon: Dumbbell,
-    discount: "15% OFF",
-    description: "Full gym access & classes",
-    image: "https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=400",
-    location: "Multiple locations",
-    hours: "5am - 11pm",
-  },
-  {
-    id: "3",
-    name: "Glow Nail Studio",
-    category: "Beauty",
-    icon: Scissors,
-    discount: "25% OFF",
-    description: "Manicure, pedicure & nail art",
-    image: "https://images.unsplash.com/photo-1604654894610-df63bc536371?w=400",
-    location: "Midtown",
-    hours: "10am - 7pm",
-  },
-  {
-    id: "4",
-    name: "The Wellness Hotel",
-    category: "Hospitality",
-    icon: Hotel,
-    discount: "30% OFF",
-    description: "Spa rooms & wellness retreats",
-    image: "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=400",
-    location: "Beachfront",
-    hours: "24 hours",
-  },
-  {
-    id: "5",
-    name: "Mindful Yoga",
-    category: "Fitness",
-    icon: Heart,
-    discount: "Free Trial",
-    description: "Yoga & meditation classes",
-    image: "https://images.unsplash.com/photo-1545205597-3d9d02c29597?w=400",
-    location: "Uptown",
-    hours: "6am - 9pm",
-  },
-];
+// Transform Supabase data to component format
+function transformDiscount(d: PartnerDiscount): PartnerBusiness {
+  return {
+    id: d.id,
+    name: d.partner_name,
+    category: d.category,
+    icon: CATEGORY_ICONS[d.category] || Heart,
+    discount: d.discount_value,
+    description: d.description,
+    image: d.image_url,
+    location: d.location,
+    hours: d.hours,
+    minLevelRequired: d.min_level_required || 0,
+  };
+}
 
 export default function MembershipScreen() {
   const userName = useWellnessStore((s) => s.userName);
   const plantLevel = useWellnessStore((s) => s.plantLevel);
   const inviteCode = useWellnessStore((s) => s.inviteCode);
   const { user } = useAuth();
+
+  // Fetch partner discounts from Supabase
+  const { data: discountsData, isLoading: discountsLoading } = useQuery({
+    queryKey: ["partner_discounts"],
+    queryFn: async () => {
+      const { data, error } = await getPartnerDiscounts();
+      if (error) throw error;
+      return data?.map(transformDiscount) || [];
+    },
+    staleTime: 1000 * 60 * 5, // 5 minutes
+  });
+
+  const partnerBusinesses = discountsData || [];
 
   const shimmer = useSharedValue(0);
   const cardRotateX = useSharedValue(0);
@@ -472,67 +457,111 @@ export default function MembershipScreen() {
               </Text>
             </View>
 
-            {PARTNER_BUSINESSES.map((partner, index) => (
-              <Animated.View
-                key={partner.id}
-                entering={FadeInUp.delay(450 + index * 50).duration(500)}
-              >
-                <Pressable
-                  onPress={() => handlePartnerPress(partner)}
-                  className="bg-white/5 rounded-2xl mb-3 overflow-hidden active:bg-white/10"
+            {/* Loading State */}
+            {discountsLoading && (
+              <View className="items-center py-8">
+                <ActivityIndicator size="small" color="#94a67e" />
+                <Text className="text-white/50 text-sm mt-2">Loading discounts...</Text>
+              </View>
+            )}
+
+            {!discountsLoading && partnerBusinesses.map((partner: PartnerBusiness, index: number) => {
+              const isLocked = plantLevel < partner.minLevelRequired;
+
+              return (
+                <Animated.View
+                  key={partner.id}
+                  entering={FadeInUp.delay(450 + index * 50).duration(500)}
                 >
-                  <View className="flex-row">
-                    {/* Partner Image */}
-                    <Image
-                      source={{ uri: partner.image }}
-                      style={{ width: 100, height: 100 }}
-                      resizeMode="cover"
-                    />
+                  <Pressable
+                    onPress={() => !isLocked && handlePartnerPress(partner)}
+                    className={`bg-white/5 rounded-2xl mb-3 overflow-hidden ${isLocked ? 'opacity-60' : 'active:bg-white/10'}`}
+                  >
+                    <View className="flex-row">
+                      {/* Partner Image */}
+                      <View style={{ width: 100, height: 100 }}>
+                        <Image
+                          source={{ uri: partner.image }}
+                          style={{ width: 100, height: 100 }}
+                          resizeMode="cover"
+                        />
+                        {/* Lock overlay for locked discounts */}
+                        {isLocked && (
+                          <View
+                            style={{
+                              position: 'absolute',
+                              top: 0,
+                              left: 0,
+                              right: 0,
+                              bottom: 0,
+                              backgroundColor: 'rgba(0,0,0,0.5)',
+                              alignItems: 'center',
+                              justifyContent: 'center'
+                            }}
+                          >
+                            <Lock size={24} color="white" />
+                          </View>
+                        )}
+                      </View>
 
-                    {/* Partner Info */}
-                    <View className="flex-1 p-3">
-                      <View className="flex-row items-center justify-between">
-                        <Text className="text-white font-semibold text-base">
-                          {partner.name}
+                      {/* Partner Info */}
+                      <View className="flex-1 p-3">
+                        <View className="flex-row items-center justify-between">
+                          <Text className="text-white font-semibold text-base">
+                            {partner.name}
+                          </Text>
+                          {isLocked ? (
+                            <View className="bg-amber-600/80 px-2 py-1 rounded-lg flex-row items-center">
+                              <Lock size={10} color="white" />
+                              <Text className="text-white text-xs font-bold ml-1">
+                                Lvl {partner.minLevelRequired}+
+                              </Text>
+                            </View>
+                          ) : (
+                            <View className="bg-sage-500 px-2 py-1 rounded-lg">
+                              <Text className="text-white text-xs font-bold">
+                                {partner.discount}
+                              </Text>
+                            </View>
+                          )}
+                        </View>
+
+                        <Text className="text-white/50 text-xs mt-1">
+                          {partner.category}
                         </Text>
-                        <View className="bg-sage-500 px-2 py-1 rounded-lg">
-                          <Text className="text-white text-xs font-bold">
-                            {partner.discount}
-                          </Text>
+
+                        <Text className="text-white/70 text-sm mt-1" numberOfLines={1}>
+                          {isLocked ? `Unlock at Level ${partner.minLevelRequired}` : partner.description}
+                        </Text>
+
+                        <View className="flex-row items-center mt-2">
+                          <View className="flex-row items-center mr-3">
+                            <MapPin size={12} color="#94a67e" />
+                            <Text className="text-white/40 text-xs ml-1">
+                              {partner.location}
+                            </Text>
+                          </View>
+                          <View className="flex-row items-center">
+                            <Clock size={12} color="#94a67e" />
+                            <Text className="text-white/40 text-xs ml-1">
+                              {partner.hours}
+                            </Text>
+                          </View>
                         </View>
                       </View>
 
-                      <Text className="text-white/50 text-xs mt-1">
-                        {partner.category}
-                      </Text>
-
-                      <Text className="text-white/70 text-sm mt-1" numberOfLines={1}>
-                        {partner.description}
-                      </Text>
-
-                      <View className="flex-row items-center mt-2">
-                        <View className="flex-row items-center mr-3">
-                          <MapPin size={12} color="#94a67e" />
-                          <Text className="text-white/40 text-xs ml-1">
-                            {partner.location}
-                          </Text>
-                        </View>
-                        <View className="flex-row items-center">
-                          <Clock size={12} color="#94a67e" />
-                          <Text className="text-white/40 text-xs ml-1">
-                            {partner.hours}
-                          </Text>
-                        </View>
+                      <View className="justify-center pr-3">
+                        {isLocked ? (
+                          <Lock size={18} color="rgba(255,255,255,0.3)" />
+                        ) : (
+                          <ChevronRight size={18} color="rgba(255,255,255,0.3)" />
+                        )}
                       </View>
                     </View>
-
-                    <View className="justify-center pr-3">
-                      <ChevronRight size={18} color="rgba(255,255,255,0.3)" />
-                    </View>
-                  </View>
-                </Pressable>
-              </Animated.View>
-            ))}
+                  </Pressable>
+                </Animated.View>
+              );
+            })}
           </Animated.View>
 
           {/* How to Use */}

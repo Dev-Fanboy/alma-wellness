@@ -14,6 +14,8 @@ export interface Profile {
     invite_code: string;
     last_active_at: string;
     created_at: string;
+    friends_garden_streak: number;
+    friends_garden_last_met: string | null;
 }
 
 export interface Friendship {
@@ -98,6 +100,51 @@ export async function syncProgress(
         }, { onConflict: "user_id,date" });
 
     return { error: progressError };
+}
+
+/**
+ * Check and increment friends garden streak if goal met
+ */
+export async function checkAndIncrementFriendsStreak(totalPoints: number) {
+    if (totalPoints < 2500) return;
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    try {
+        const { data: profile, error } = await supabase
+            .from("profiles")
+            .select("friends_garden_streak, friends_garden_last_met")
+            .eq("id", user.id)
+            .single();
+
+        if (error || !profile) return;
+
+        const now = new Date();
+        const lastMet = profile.friends_garden_last_met ? new Date(profile.friends_garden_last_met) : null;
+
+        // Calculate start of current week (Sunday)
+        const startOfWeek = new Date(now);
+        startOfWeek.setDate(now.getDate() - now.getDay());
+        startOfWeek.setHours(0, 0, 0, 0);
+
+        // If outcome already met this week, do nothing
+        if (lastMet && lastMet >= startOfWeek) {
+            return;
+        }
+
+        // Increment streak
+        await supabase
+            .from("profiles")
+            .update({
+                friends_garden_streak: (profile.friends_garden_streak || 0) + 1,
+                friends_garden_last_met: now.toISOString(),
+            })
+            .eq("id", user.id);
+
+    } catch (e) {
+        console.error("Error updating friends streak:", e);
+    }
 }
 
 // Get friends list with profiles

@@ -6,10 +6,12 @@ import {
     Pressable,
     Image,
     Linking,
+    ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
+import { useQuery } from "@tanstack/react-query";
 import {
     Calendar,
     MapPin,
@@ -24,10 +26,13 @@ import {
     ExternalLink,
     Crown,
     Handshake,
+    RefreshCw,
 } from "lucide-react-native";
+import { getRetreats, Retreat as RetreatType } from "@/lib/api/retreats";
 
 type RetreatFilter = "all" | "exclusive" | "partner";
 
+// Transform Supabase data to component format
 interface Retreat {
     id: string;
     title: string;
@@ -49,149 +54,28 @@ interface Retreat {
     registrationUrl: string;
 }
 
-const RETREATS: Retreat[] = [
-    {
-        id: "1",
-        title: "Visionboard Workshop",
-        description:
-            "Create your 2026 vision board with guided meditation and intention-setting exercises. Materials provided.",
-        fullDescription:
-            "Join us for an immersive half-day workshop where you'll craft a powerful vision board for 2026. We'll begin with a grounding meditation to connect with your deepest intentions, followed by guided journaling to clarify your goals across all areas of life—health, relationships, career, and personal growth. All materials including magazines, poster boards, markers, and embellishments are provided. Light refreshments and herbal tea will be served throughout the session.",
-        date: "January 24, 2026",
-        time: "10:00 AM - 2:00 PM",
-        location: "Wellness Studio, Downtown",
-        attendees: 18,
-        maxAttendees: 25,
-        imageUrl:
-            "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400",
-        isPast: false,
-        isUpcoming: true,
-        isAlmaExclusive: true,
-        theme: "Vision & Intention",
-        price: "$65",
-        includes: [
-            "All craft materials",
-            "Guided meditation",
-            "Light refreshments",
-            "Take-home journal prompts",
-        ],
-        facilitator: "Sarah Chen",
-        registrationUrl: "",
-    },
-    {
-        id: "2",
-        title: "Spring Renewal Retreat",
-        description:
-            "A full day of yoga, meditation, and nature walks to welcome the spring season.",
-        fullDescription:
-            "Embrace the energy of spring with this transformative full-day retreat. Begin your morning with sunrise yoga overlooking the mountains, followed by a nourishing plant-based brunch. The afternoon includes guided forest bathing, breathwork sessions, and a rejuvenating sound bath. End the day with a community dinner and intention-setting ceremony for the season ahead. This retreat is designed to help you shed what no longer serves you and plant seeds for new growth.",
-        date: "March 15, 2026",
-        time: "9:00 AM - 5:00 PM",
-        location: "Mountain View Retreat Center",
-        attendees: 8,
-        maxAttendees: 30,
-        imageUrl:
-            "https://images.unsplash.com/photo-1545389336-cf090694435e?w=400",
-        isPast: false,
-        isUpcoming: false,
-        isAlmaExclusive: false,
-        theme: "Renewal",
-        price: "$150",
-        includes: [
-            "Yoga & meditation sessions",
-            "Plant-based meals",
-            "Forest bathing experience",
-            "Sound bath healing",
-            "Retreat gift bag",
-        ],
-        facilitator: "Maya Rodriguez",
-        registrationUrl: "",
-    },
-    {
-        id: "3",
-        title: "Winter Solstice Gathering",
-        description:
-            "Celebrated the longest night with candlelit meditation, journaling, and community connection.",
-        fullDescription:
-            "We gathered on the longest night of the year for a magical evening of reflection and community. The event featured a candlelit meditation circle, guided journaling to release the old year and welcome the new, and a warming ceremony with hot cacao and shared intentions. Attendees created personal intention cards to carry into the new year.",
-        date: "December 21, 2025",
-        time: "6:00 PM - 9:00 PM",
-        location: "Community Garden Pavilion",
-        attendees: 35,
-        maxAttendees: 35,
-        imageUrl:
-            "https://images.unsplash.com/photo-1513836279014-a89f7a76ae86?w=400",
-        isPast: true,
-        isUpcoming: false,
-        isAlmaExclusive: true,
-        theme: "Reflection",
-        price: "$45",
-        includes: [
-            "Candlelit meditation",
-            "Hot cacao ceremony",
-            "Journaling materials",
-            "Intention card creation",
-        ],
-        facilitator: "James Wu",
-        registrationUrl: "",
-    },
-    {
-        id: "4",
-        title: "Mindfulness in Nature",
-        description:
-            "An afternoon of forest bathing and outdoor meditation practices in the botanical gardens.",
-        fullDescription:
-            "This sold-out event took participants on a journey through the botanical gardens with guided mindfulness practices at each stop. We explored walking meditation, sensory awareness exercises, and seated meditation among the trees. The afternoon concluded with a tea ceremony in the Japanese garden section.",
-        date: "November 8, 2025",
-        time: "2:00 PM - 6:00 PM",
-        location: "Botanical Gardens",
-        attendees: 20,
-        maxAttendees: 20,
-        imageUrl:
-            "https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=400",
-        isPast: true,
-        isUpcoming: false,
-        isAlmaExclusive: false,
-        theme: "Nature",
-        price: "$55",
-        includes: [
-            "Garden admission",
-            "Guided forest bathing",
-            "Tea ceremony",
-            "Mindfulness guide booklet",
-        ],
-        facilitator: "Elena Park",
-        registrationUrl: "",
-    },
-    {
-        id: "5",
-        title: "Gratitude Circle",
-        description:
-            "A Thanksgiving-themed gathering focused on gratitude practices and community sharing.",
-        fullDescription:
-            "In the spirit of Thanksgiving, we came together to explore the science and practice of gratitude. The evening included a gratitude meditation, sharing circle, and collaborative creation of a community gratitude mural. Attendees left with gratitude journals and daily practice cards.",
-        date: "November 23, 2025",
-        time: "4:00 PM - 7:00 PM",
-        location: "Wellness Studio, Downtown",
-        attendees: 25,
-        maxAttendees: 25,
-        imageUrl:
-            "https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=400",
-        isPast: true,
-        isUpcoming: false,
-        isAlmaExclusive: true,
-        theme: "Gratitude",
-        price: "$35",
-        includes: [
-            "Gratitude journal",
-            "Guided meditation",
-            "Light snacks",
-            "Practice cards",
-        ],
-        facilitator: "Sarah Chen",
-        registrationUrl: "",
-    },
-];
+function transformRetreat(r: RetreatType): Retreat {
+    return {
+        id: r.id,
+        title: r.title,
+        description: r.description,
+        fullDescription: r.full_description,
+        date: r.date,
+        time: r.time,
+        location: r.location,
+        attendees: r.attendees,
+        maxAttendees: r.max_attendees,
+        imageUrl: r.image_url,
+        isPast: r.is_past,
+        isUpcoming: r.is_upcoming,
+        isAlmaExclusive: r.is_alma_exclusive,
+        theme: r.theme,
+        price: r.price,
+        includes: r.includes || [],
+        facilitator: r.facilitator,
+        registrationUrl: r.registration_url || "",
+    };
+}
 
 function RetreatCard({
     retreat,
@@ -411,15 +295,28 @@ export default function RetreatsScreen() {
     const [expandedId, setExpandedId] = useState<string | null>(null);
     const [filter, setFilter] = useState<RetreatFilter>("all");
 
+    // Fetch retreats from Supabase
+    const { data: retreatsData, isLoading, error, refetch } = useQuery({
+        queryKey: ["retreats"],
+        queryFn: async () => {
+            const { data, error } = await getRetreats();
+            if (error) throw error;
+            return data?.map(transformRetreat) || [];
+        },
+        staleTime: 1000 * 60 * 5, // 5 minutes
+    });
+
+    const retreats = retreatsData || [];
+
     // Apply filter
-    const filteredRetreats = RETREATS.filter((r) => {
+    const filteredRetreats = retreats.filter((r: Retreat) => {
         if (filter === "exclusive") return r.isAlmaExclusive;
         if (filter === "partner") return !r.isAlmaExclusive;
         return true;
     });
 
-    const upcomingRetreats = filteredRetreats.filter((r) => !r.isPast);
-    const pastRetreats = filteredRetreats.filter((r) => r.isPast);
+    const upcomingRetreats = filteredRetreats.filter((r: Retreat) => !r.isPast);
+    const pastRetreats = filteredRetreats.filter((r: Retreat) => r.isPast);
 
     const toggleExpand = (id: string) => {
         setExpandedId(expandedId === id ? null : id);
@@ -428,6 +325,11 @@ export default function RetreatsScreen() {
     const handleFilterChange = (newFilter: RetreatFilter) => {
         setFilter(newFilter);
         setExpandedId(null);
+    };
+
+    const handleRefresh = () => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        refetch();
     };
 
     return (
@@ -505,13 +407,37 @@ export default function RetreatsScreen() {
                         </View>
                     </View>
 
+                    {/* Loading State */}
+                    {isLoading && (
+                        <View className="px-5 mt-10 items-center">
+                            <ActivityIndicator size="large" color="#778b5f" />
+                            <Text className="text-sage-500 mt-4">Loading retreats...</Text>
+                        </View>
+                    )}
+
+                    {/* Error State */}
+                    {error && !isLoading && (
+                        <View className="px-5 mt-10 items-center">
+                            <Text className="text-sage-500 text-center mb-4">
+                                Unable to load retreats. Please try again.
+                            </Text>
+                            <Pressable
+                                onPress={handleRefresh}
+                                className="flex-row items-center bg-sage-500 px-4 py-2 rounded-xl"
+                            >
+                                <RefreshCw size={16} color="white" />
+                                <Text className="text-white font-medium ml-2">Retry</Text>
+                            </Pressable>
+                        </View>
+                    )}
+
                     {/* Upcoming Retreats */}
-                    {upcomingRetreats.length > 0 && (
+                    {!isLoading && !error && upcomingRetreats.length > 0 && (
                         <View className="px-5 mt-6">
                             <Text className="text-lg font-semibold text-sage-900 mb-3">
                                 Upcoming Retreats
                             </Text>
-                            {upcomingRetreats.map((retreat, index) => (
+                            {upcomingRetreats.map((retreat: Retreat, index: number) => (
                                 <RetreatCard
                                     key={retreat.id}
                                     retreat={retreat}
@@ -524,12 +450,12 @@ export default function RetreatsScreen() {
                     )}
 
                     {/* Past Retreats */}
-                    {pastRetreats.length > 0 && (
+                    {!isLoading && !error && pastRetreats.length > 0 && (
                         <View className="px-5 mt-4">
                             <Text className="text-lg font-semibold text-sage-900 mb-3">
                                 Past Retreats
                             </Text>
-                            {pastRetreats.map((retreat, index) => (
+                            {pastRetreats.map((retreat: Retreat, index: number) => (
                                 <RetreatCard
                                     key={retreat.id}
                                     retreat={retreat}
@@ -542,7 +468,7 @@ export default function RetreatsScreen() {
                     )}
 
                     {/* Empty State */}
-                    {filteredRetreats.length === 0 && (
+                    {!isLoading && !error && filteredRetreats.length === 0 && (
                         <View className="px-5 mt-10 items-center">
                             <Text className="text-sage-500 text-center">
                                 No retreats found for this filter.

@@ -8,6 +8,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { Celebration } from "@/components/Celebration";
 import { FeatureTour } from "@/components/FeatureTour";
+import { NotificationPrompt } from "@/components/NotificationPrompt";
 import { useWellnessStore } from "@/lib/store";
 import { initializeNotifications } from "@/lib/notifications";
 import { soundManager } from "@/lib/sounds";
@@ -244,11 +245,25 @@ function RootLayoutNav() {
         />
       </Stack>
       <NavigationHandler />
+      <NotificationPromptWrapper />
       <Celebration
         visible={showCelebration}
         onComplete={() => setShowCelebration(false)}
       />
     </>
+  );
+}
+
+// Separate component for notification prompt to use auth context
+function NotificationPromptWrapper() {
+  const { showNotificationPrompt, handleAllowNotifications, handleSkipNotifications } = useAuth();
+
+  return (
+    <NotificationPrompt
+      visible={showNotificationPrompt}
+      onAllow={handleAllowNotifications}
+      onSkip={handleSkipNotifications}
+    />
   );
 }
 

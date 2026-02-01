@@ -841,8 +841,11 @@ export default function GoalsScreen() {
                       <Pressable
                         onPress={() => {
                           const current = parseInt(customGoal.target) || 0;
-                          if (current > 1) {
-                            setCustomGoal((prev) => ({ ...prev, target: String(current - 1) }));
+                          // Use step of 500 for large targets (steps), 1 for smaller goals
+                          const step = current >= 1000 ? 500 : 1;
+                          const minimum = current >= 1000 ? 500 : 1;
+                          if (current > minimum) {
+                            setCustomGoal((prev) => ({ ...prev, target: String(Math.max(minimum, current - step)) }));
                             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                           }
                         }}
@@ -865,7 +868,9 @@ export default function GoalsScreen() {
                       <Pressable
                         onPress={() => {
                           const current = parseInt(customGoal.target) || 0;
-                          setCustomGoal((prev) => ({ ...prev, target: String(current + 1) }));
+                          // Use step of 500 for large targets (steps), 1 for smaller goals
+                          const step = current >= 1000 ? 500 : 1;
+                          setCustomGoal((prev) => ({ ...prev, target: String(current + step) }));
                           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                         }}
                         className="w-12 h-12 rounded-xl bg-sage-100 items-center justify-center"
@@ -1031,8 +1036,11 @@ export default function GoalsScreen() {
                     <Pressable
                       onPress={() => {
                         const current = parseInt(editGoalData.target) || 0;
-                        if (current > 1) {
-                          setEditGoalData((prev) => ({ ...prev, target: String(current - 1) }));
+                        // Use step of 500 for large targets (steps), 1 for smaller goals
+                        const step = current >= 1000 ? 500 : 1;
+                        const minimum = current >= 1000 ? 500 : 1;
+                        if (current > minimum) {
+                          setEditGoalData((prev) => ({ ...prev, target: String(Math.max(minimum, current - step)) }));
                           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                         }
                       }}
@@ -1055,7 +1063,9 @@ export default function GoalsScreen() {
                     <Pressable
                       onPress={() => {
                         const current = parseInt(editGoalData.target) || 0;
-                        setEditGoalData((prev) => ({ ...prev, target: String(current + 1) }));
+                        // Use step of 500 for large targets (steps), 1 for smaller goals
+                        const step = current >= 1000 ? 500 : 1;
+                        setEditGoalData((prev) => ({ ...prev, target: String(current + step) }));
                         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                       }}
                       className="w-12 h-12 rounded-xl bg-sage-100 items-center justify-center"

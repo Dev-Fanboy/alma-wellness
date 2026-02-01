@@ -17,6 +17,10 @@ import {
   Bell,
   Sparkles,
   Heart,
+  Users,
+  Cloud,
+  CreditCard,
+  Download,
 } from "lucide-react-native";
 
 interface FAQItem {
@@ -50,37 +54,65 @@ const FAQ_DATA: FAQItem[] = [
   },
   {
     id: "4",
-    question: "How do notifications and reminders work?",
+    question: "How do I add friends to my garden?",
     answer:
-      "You can set personalized reminders for each of your wellness goals. Go to your Profile > Notifications to manage your reminder preferences. When adding or editing goals, you can set specific times to receive gentle nudges to stay on track with your wellness journey.",
-    icon: Bell,
+      "Go to the Garden tab and tap 'Add Friend'. You can share your unique invite code or scan a friend's QR code. When your friend accepts, you'll both see each other's plants in your shared garden! You'll get notified when friends join your garden or hit milestones.",
+    icon: Users,
   },
   {
     id: "5",
+    question: "How does cloud sync work?",
+    answer:
+      "When you're signed in, your wellness data automatically syncs to the cloud. This means your progress, goals, journal entries, and plant are safely backed up and accessible if you switch devices. Just sign in with the same account to continue your journey.",
+    icon: Cloud,
+  },
+  {
+    id: "6",
+    question: "How do notifications and reminders work?",
+    answer:
+      "You can set personalized reminders for each of your wellness goals. Go to your Profile > Notifications to manage your reminder preferences. You'll also receive notifications when friends join your garden or celebrate milestones!",
+    icon: Bell,
+  },
+  {
+    id: "7",
+    question: "What is the Wellness Membership?",
+    answer:
+      "The Wellness Membership is a premium benefit that gives you access to exclusive discounts at spas, gyms, hotels, and wellness partners. As you progress in your wellness journey, you unlock greater benefits. View your membership card in Profile > Wellness Membership.",
+    icon: CreditCard,
+  },
+  {
+    id: "8",
     question: "What are wellness retreats?",
     answer:
       "Our curated wellness retreats are immersive experiences designed to deepen your practice and connect with like-minded individuals. Browse available retreats in the Retreats tab, explore destinations, and book transformative experiences that align with your wellness goals.",
     icon: Heart,
   },
   {
-    id: "6",
+    id: "9",
     question: "How do I maintain my streak?",
     answer:
       "Complete at least one wellness goal each day to maintain your streak. Your current streak is displayed on your profile. The longer your streak, the more achievements you unlock! If you miss a day, don't worry—just pick up where you left off.",
     icon: Sparkles,
   },
   {
-    id: "7",
+    id: "10",
     question: "Can I customize my goals?",
     answer:
       "Absolutely! While we offer suggested goals like hydration, meditation, and steps, you can create custom goals that fit your unique wellness journey. Set your own targets, choose icons, and track what matters most to you.",
     icon: Target,
   },
   {
-    id: "8",
+    id: "11",
+    question: "How do I export my wellness data?",
+    answer:
+      "Go to Profile > Export Data to download your complete wellness history. You can export your goals, journal entries, daily progress, and achievements as a file to keep for your records or share with healthcare providers.",
+    icon: Download,
+  },
+  {
+    id: "12",
     question: "Is my data private and secure?",
     answer:
-      "Your privacy is our priority. All your wellness data is stored securely on your device. We do not share your personal information with third parties. You have full control over your data and can reset or delete it anytime from the settings.",
+      "Your privacy is our priority. When signed in, your data is stored securely in the cloud using industry-standard encryption. We do not share your personal information with third parties. You have full control over your data and can export or delete it anytime from the settings.",
     icon: HelpCircle,
   },
 ];
@@ -98,9 +130,8 @@ function FAQAccordion({ item, index }: { item: FAQItem; index: number }) {
     <Animated.View entering={FadeInUp.delay(200 + index * 50).duration(400)}>
       <Pressable
         onPress={handleToggle}
-        className={`bg-white rounded-2xl mb-3 overflow-hidden ${
-          isOpen ? "border border-sage-200" : ""
-        }`}
+        className={`bg-white rounded-2xl mb-3 overflow-hidden ${isOpen ? "border border-sage-200" : ""
+          }`}
       >
         <View className="flex-row items-center p-4">
           <View className="w-10 h-10 rounded-full bg-sage-50 items-center justify-center">
