@@ -803,16 +803,21 @@ export default function GardenScreen() {
             {/* Invite Code */}
             <View className="bg-white rounded-2xl p-4 mb-4">
               <Text className="text-sm text-sage-500 mb-2">
-                Your invite code
+                {currentPage === 0 ? "Your invite code" : "Garden invite code"}
               </Text>
               <View className="flex-row items-center">
                 <View className="flex-1 bg-sage-50 rounded-xl px-4 py-3">
                   <Text className="text-xl font-bold text-sage-800 text-center tracking-widest">
-                    {inviteCode}
+                    {currentPage === 0 ? inviteCode : groves[currentPage - 1]?.inviteCode || "Loading..."}
                   </Text>
                 </View>
                 <Pressable
-                  onPress={handleCopyCode}
+                  onPress={async () => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                    await Clipboard.setStringAsync(currentPage === 0 ? inviteCode : groves[currentPage - 1]?.inviteCode || "");
+                    setCopiedCode(true);
+                    setTimeout(() => setCopiedCode(false), 2000);
+                  }}
                   className={`ml-3 w-12 h-12 rounded-xl items-center justify-center ${copiedCode ? "bg-green-500" : "bg-sage-100"
                     }`}
                 >
@@ -827,7 +832,19 @@ export default function GardenScreen() {
 
             {/* Share Button */}
             <Pressable
-              onPress={handleShare}
+              onPress={async () => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                try {
+                  await Share.share({
+                    message: generateShareMessage(
+                      currentPage === 0 ? inviteCode : groves[currentPage - 1]?.inviteCode || "",
+                      userName
+                    ),
+                  });
+                } catch (error) {
+                  // Error handling
+                }
+              }}
               className="bg-sage-600 rounded-2xl py-4 flex-row items-center justify-center"
             >
               <Share2 size={20} color="white" />

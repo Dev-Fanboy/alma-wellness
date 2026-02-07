@@ -8,9 +8,9 @@
     "icon": "./public/app-logo.png",
     "userInterfaceStyle": "automatic",
     "splash": {
-      "image": "./public/app-logo.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#fdfbf7"
+      "image": "./public/splash-image.jpg",
+      "resizeMode": "cover",
+      "backgroundColor": "#878d7b"
     },
     "newArchEnabled": true,
     "ios": {

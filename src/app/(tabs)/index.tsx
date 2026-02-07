@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { View, Text, ScrollView, Pressable, Image, Dimensions } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import Animated, { FadeInDown, FadeInUp } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
 import { Sparkles, Flame, BookHeart, ChevronRight, Clock } from "lucide-react-native";
@@ -14,18 +14,29 @@ import { MilestoneStreakBadge } from "@/components/MilestoneStreakBadge";
 import { useWellnessStore } from "@/lib/store";
 import { checkAndResetDailyGoals } from "@/utils/dailyReset";
 import { useFonts, CinzelDecorative_700Bold } from "@expo-google-fonts/cinzel-decorative";
+import { DailySeedsCard } from "@/components/DailySeedsCard";
 
 export default function HomeScreen() {
   const [fontsLoaded] = useFonts({
     CinzelDecorative_700Bold,
   });
+  const { action } = useLocalSearchParams<{ action: string }>();
   const [shareModalVisible, setShareModalVisible] = useState(false);
+  const [dailySeedsVisible, setDailySeedsVisible] = useState(false);
   const [briefingVisible, setBriefingVisible] = useState(false);
   const [briefingData, setBriefingData] = useState<{
     newDay: boolean;
     streakBroken: boolean;
     rescued: boolean;
   } | null>(null);
+
+  // Handle deep link actions
+  React.useEffect(() => {
+    if (action === "openDailySeed") {
+      setDailySeedsVisible(true);
+      // Optional: Clear the param (requires replace) - keeping simple for now
+    }
+  }, [action]);
 
   // Check for daily reset on mount
   React.useEffect(() => {
@@ -126,19 +137,27 @@ export default function HomeScreen() {
                 {userName ? `, ${userName}` : ""}
               </Text>
 
-              {/* Streak badge - pressable to share */}
-              {currentStreak > 0 && (
-                <View className="items-end">
-                  {/* Milestone Pulse Effect */}
-                  <MilestoneStreakBadge
-                    streak={currentStreak}
-                    onPress={() => {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                      setShareModalVisible(true);
-                    }}
-                  />
-                </View>
-              )}
+              <View className="items-end flex-row space-x-3">
+                {/* Daily Seeds Button */}
+                <Pressable
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setDailySeedsVisible(true);
+                  }}
+                  className="bg-white/50 p-2 rounded-full border border-sage-200"
+                >
+                  <BookHeart size={20} color="#778b5f" />
+                </Pressable>
+
+                {/* Milestone Pulse Effect */}
+                <MilestoneStreakBadge
+                  streak={currentStreak}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                    setShareModalVisible(true);
+                  }}
+                />
+              </View>
             </View>
           </Animated.View>
 
@@ -364,11 +383,18 @@ export default function HomeScreen() {
       {briefingData && (
         <MorningBriefing
           visible={briefingVisible}
-          onClose={() => setBriefingVisible(false)}
+          onClose={() => {
+            setBriefingVisible(false);
+            // Auto-open Daily Seeds after briefing
+            setTimeout(() => setDailySeedsVisible(true), 500);
+          }}
           status={briefingData}
           streakCount={currentStreak}
         />
       )}
+
+      {/* Daily Seeds Modal */}
+      <DailySeedsCard visible={dailySeedsVisible} onClose={() => setDailySeedsVisible(false)} />
     </View>
   );
 }

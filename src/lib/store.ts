@@ -100,6 +100,10 @@ interface WellnessState {
   plantPoints: number;
   plantStage: "seed" | "sprout" | "growing" | "budding" | "blooming";
 
+  // Membership
+  membershipStatus: "active" | "expired";
+  setMembershipStatus: (status: "active" | "expired") => void;
+
   // Goals
   goals: Goal[];
   lastResetDate: string;
@@ -360,13 +364,16 @@ export const useWellnessStore = create<WellnessState>()(
 
       // User
       userName: "",
-      userAvatar:
-        "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100",
+      userAvatar: "",
       userAgeRange: "",
       userWellnessFocus: "",
       plantLevel: 1,
       plantPoints: 0,
       plantStage: "seed",
+
+      membershipStatus: "expired",
+      setMembershipStatus: (status) => set({ membershipStatus: status }),
+
       goals: DEFAULT_GOALS,
       lastResetDate: getTodayDate(),
       dailyHistory: [],
@@ -419,44 +426,81 @@ export const useWellnessStore = create<WellnessState>()(
           ),
         })),
 
-      updateGoalProgress: (id, progress) =>
+      updateGoalProgress: (id, progress) => {
+        const state = get();
+        const goal = state.goals.find((g) => g.id === id);
+        if (!goal) return;
+
+        // processing update
+        const newCurrent = Math.min(progress, goal.target);
+
+        // If target reached, trigger complete logic directly
+        // completeGoal will handle setting current to target and updating streak
+        if (newCurrent >= goal.target) {
+          get().completeGoal(id);
+          return;
+        }
+
+        // Update the goal with new progress
         set((state) => ({
           goals: state.goals.map((g) =>
-            g.id === id ? { ...g, current: Math.min(progress, g.target) } : g
+            g.id === id ? { ...g, current: newCurrent } : g
           ),
-        })),
+        }));
+      },
 
       completeGoal: (id) => {
         const state = get();
         const goal = state.goals.find((g) => g.id === id);
+
+        // We allow completion if not yet fully met OR if we just want to trigger checking (idempotent)
+        // But mainly we want to avoid double-processing points unless we handle that carefully.
+        // Actually, existing logic: if (goal && goal.current < goal.target)
+        // We should relax this check effectively because we might call completeGoal FROM updateGoalProgress
+        // where we ALREADY set current=target (via the local optimistic update in updateGoalProgress? No, we removed that).
+        // Wait, in my previous fix I REMOVED the local update in updateGoalProgress if target met.
+        // So goal.current IS < goal.target coming in. Safe.
+
         if (goal && goal.current < goal.target) {
           const newPoints = state.plantPoints + goal.points;
           const pointsPerLevel = 100;
           const newLevel = Math.floor(newPoints / pointsPerLevel) + 1;
           const today = getTodayDate();
 
-          // Update streak
+          // Calculate total completed goals (including this one)
+          // We assume this goal is about to be completed
+          const otherCompletedCount = state.goals.filter(g => g.id !== id && g.current >= g.target).length;
+          const totalCompleted = otherCompletedCount + 1;
+
+          // Update streak ONLY if we have at least 2 goals completed
           let newStreak = state.currentStreak;
           let newLongestStreak = state.longestStreak;
+          let newLastActiveDate = state.lastActiveDate;
 
-          if (state.lastActiveDate !== today) {
-            if (
-              isConsecutiveDay(state.lastActiveDate, today) ||
-              state.lastActiveDate === ""
-            ) {
-              newStreak = state.currentStreak + 1;
-            } else if (!isSameDay(state.lastActiveDate, today)) {
-              // Streak broken if more than 1 day gap
-              const last = new Date(state.lastActiveDate);
-              const current = new Date(today);
-              const diffDays = Math.floor(
-                (current.getTime() - last.getTime()) / (1000 * 60 * 60 * 24)
-              );
-              if (diffDays > 1) {
-                newStreak = 1;
+          const STREAK_THRESHOLD = 2;
+
+          if (totalCompleted >= STREAK_THRESHOLD) {
+            if (state.lastActiveDate !== today) {
+              if (
+                isConsecutiveDay(state.lastActiveDate, today) ||
+                state.lastActiveDate === ""
+              ) {
+                newStreak = state.currentStreak + 1;
+              } else if (!isSameDay(state.lastActiveDate, today)) {
+                // Streak broken if more than 1 day gap
+                // Note: checkAndResetDaily usually handles breaking, but if we resume after long break:
+                const last = new Date(state.lastActiveDate);
+                const current = new Date(today);
+                const diffDays = Math.floor(
+                  (current.getTime() - last.getTime()) / (1000 * 60 * 60 * 24)
+                );
+                if (diffDays > 1) {
+                  newStreak = 1;
+                }
               }
+              newLongestStreak = Math.max(newLongestStreak, newStreak);
+              newLastActiveDate = today;
             }
-            newLongestStreak = Math.max(newLongestStreak, newStreak);
           }
 
           // Update achievement progress based on goal type
@@ -488,7 +532,7 @@ export const useWellnessStore = create<WellnessState>()(
             plantStage: getPlantStage(newLevel),
             currentStreak: newStreak,
             longestStreak: newLongestStreak,
-            lastActiveDate: today,
+            lastActiveDate: newLastActiveDate,
             achievements: updatedAchievements,
           });
         }
@@ -689,7 +733,7 @@ export const useWellnessStore = create<WellnessState>()(
           hasCompletedOnboarding: false,
           hasSeenTour: false,
           userName: "",
-          userAvatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100",
+          userAvatar: "",
           plantLevel: 1,
           plantPoints: 0,
           plantStage: "seed",
@@ -706,6 +750,7 @@ export const useWellnessStore = create<WellnessState>()(
           communityChallenges: [],
           inviteCode: "ALMA" + Math.random().toString(36).substring(2, 8).toUpperCase(),
           sunStones: 3, // Start with 3 sun stones
+          membershipStatus: "expired",
         });
       },
     }),
@@ -730,6 +775,7 @@ export const useWellnessStore = create<WellnessState>()(
         achievements: state.achievements,
         sunStones: state.sunStones,
         inviteCode: state.inviteCode,
+        membershipStatus: state.membershipStatus,
       }),
     }
   )

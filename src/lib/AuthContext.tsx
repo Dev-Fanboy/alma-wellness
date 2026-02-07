@@ -4,6 +4,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase, onAuthStateChange, getSession } from "@/lib/supabase";
 import { registerForPushNotifications, unregisterPushNotifications } from "@/lib/api/notifications";
 import * as Notifications from "expo-notifications";
+import { useWellnessStore } from "./store";
 
 const NOTIFICATION_PROMPT_KEY = "@alma_notification_prompt_shown";
 
@@ -102,6 +103,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }, []);
 
     const handleSignOut = async () => {
+        // Clear local app state (Zustand)
+        useWellnessStore.getState().resetAllData();
+
         await unregisterPushNotifications();
         await supabase.auth.signOut();
         setSession(null);

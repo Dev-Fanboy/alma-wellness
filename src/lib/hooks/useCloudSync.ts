@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { useAuth } from "@/lib/AuthContext";
 import { useWellnessStore } from "@/lib/store";
 import { updateProfile, getProfile, syncProgress, Profile } from "@/lib/api/profile";
+import { supabase } from "@/lib/supabase";
 
 /**
  * Hook to sync local wellness data with Supabase cloud
@@ -14,15 +15,11 @@ export function useCloudSync() {
     const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
     // Local store getters
-    const userName = useWellnessStore((s) => s.userName);
-    const userAvatar = useWellnessStore((s) => s.userAvatar);
+    // Note: for pushToCloud we use getState() to ensure fresh values, 
+    // but we keep these for dependencies array
     const plantLevel = useWellnessStore((s) => s.plantLevel);
     const plantPoints = useWellnessStore((s) => s.plantPoints);
     const currentStreak = useWellnessStore((s) => s.currentStreak);
-    const longestStreak = useWellnessStore((s) => s.longestStreak);
-    const dailyHistory = useWellnessStore((s) => s.dailyHistory);
-    const userAgeRange = useWellnessStore((s) => s.userAgeRange);
-    const userWellnessFocus = useWellnessStore((s) => s.userWellnessFocus);
 
     // Local store setters
     const setUserName = useWellnessStore((s) => s.setUserName);
@@ -30,12 +27,18 @@ export function useCloudSync() {
     const setUserAgeRange = useWellnessStore((s) => s.setUserAgeRange);
     const setUserWellnessFocus = useWellnessStore((s) => s.setUserWellnessFocus);
     const setInviteCode = useWellnessStore((s) => s.setInviteCode);
+    const setMembershipStatus = useWellnessStore((s) => s.setMembershipStatus);
     const inviteCode = useWellnessStore((s) => s.inviteCode);
+    const userAgeRange = useWellnessStore((s) => s.userAgeRange);
+    const userWellnessFocus = useWellnessStore((s) => s.userWellnessFocus);
+    const userAvatar = useWellnessStore((s) => s.userAvatar);
+    const userName = useWellnessStore((s) => s.userName);
 
     // Get today's progress
     const getTodayProgress = () => {
+        const state = useWellnessStore.getState();
         const today = new Date().toISOString().split("T")[0];
-        const todayEntry = dailyHistory.find((d) => d.date === today);
+        const todayEntry = state.dailyHistory.find((d) => d.date === today);
         return {
             pointsToday: todayEntry?.pointsEarned || 0,
             goalsCompletedToday: todayEntry?.goalsCompleted || 0,
@@ -80,6 +83,10 @@ export function useCloudSync() {
                 if (cloudProfile.invite_code && cloudProfile.invite_code !== inviteCode) {
                     setInviteCode(cloudProfile.invite_code);
                 }
+                // Sync membership status (server authority)
+                if (cloudProfile.membership_status) {
+                    setMembershipStatus(cloudProfile.membership_status);
+                }
             }
         } catch (error) {
             console.error("Error pulling from cloud:", error);
@@ -96,8 +103,8 @@ export function useCloudSync() {
         lastSyncRef.current = now;
 
         // Get fresh state to avoid stale closures
-        const currentGenericState = useWellnessStore.getState();
-        const freshInviteCode = currentGenericState.inviteCode;
+        const state = useWellnessStore.getState();
+        const freshInviteCode = state.inviteCode;
 
         // Don't sync if invite code is missing or default/invalid
         if (!freshInviteCode || freshInviteCode.length < 4) {
@@ -107,23 +114,26 @@ export function useCloudSync() {
         try {
             // Update profile
             await updateProfile({
-                name: userName,
-                avatar_url: userAvatar,
-                age_range: userAgeRange,
-                wellness_focus: userWellnessFocus,
+                name: state.userName,
+                avatar_url: state.userAvatar,
+                age_range: state.userAgeRange,
+                wellness_focus: state.userWellnessFocus,
                 invite_code: freshInviteCode, // Ensure local invite code is synced to cloud
             });
 
             // Sync daily progress
             const { pointsToday, goalsCompletedToday, totalGoalsToday } = getTodayProgress();
+
+            // Use fresh state for all values
             await syncProgress(
-                plantLevel,
-                plantPoints,
-                currentStreak,
-                longestStreak,
+                state.plantLevel,
+                state.plantPoints,
+                state.currentStreak,
+                state.longestStreak,
                 pointsToday,
                 goalsCompletedToday,
-                totalGoalsToday
+                totalGoalsToday,
+                state.membershipStatus
             );
         } catch (error) {
             console.error("Error pushing to cloud:", error);
@@ -155,6 +165,33 @@ export function useCloudSync() {
             pushToCloud();
         }
     }, [plantLevel, plantPoints, currentStreak]);
+
+    // Subscribe to real-time profile updates (e.g. membership status change)
+    useEffect(() => {
+        if (!user) return;
+
+        const channel = supabase
+            .channel(`profile_updates_${user.id}`)
+            .on(
+                "postgres_changes",
+                {
+                    event: "UPDATE",
+                    schema: "public",
+                    table: "profiles",
+                    filter: `id=eq.${user.id}`,
+                },
+                (payload: any) => {
+                    console.log("Profile updated from cloud:", payload);
+                    // Re-sync from cloud to get latest membership status etc.
+                    pullFromCloud();
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [user]);
 
     return {
         isAuthenticated: !!user,

@@ -52,6 +52,8 @@ import QRCode from "react-native-qrcode-svg";
 import { useAuth } from "@/lib/AuthContext";
 import { getPartnerDiscounts, PartnerDiscount } from "@/lib/api/discounts";
 
+import { BlurView } from "expo-blur";
+
 // Category icon mapping
 const CATEGORY_ICONS: Record<string, React.ComponentType<{ size: number; color: string }>> = {
   "Spa & Wellness": Flower2,
@@ -93,6 +95,7 @@ export default function MembershipScreen() {
   const userName = useWellnessStore((s) => s.userName);
   const plantLevel = useWellnessStore((s) => s.plantLevel);
   const inviteCode = useWellnessStore((s) => s.inviteCode);
+  const membershipStatus = useWellnessStore((s) => s.membershipStatus);
   const { user } = useAuth();
 
   // Fetch partner discounts from Supabase
@@ -226,6 +229,7 @@ export default function MembershipScreen() {
         <Animated.View
           entering={FadeInDown.delay(100).duration(500)}
           className="flex-row items-center justify-between px-5 pt-2 pb-4"
+          style={{ zIndex: 50 }}
         >
           <Pressable
             onPress={handleBack}
@@ -241,15 +245,16 @@ export default function MembershipScreen() {
           className="flex-1"
           contentContainerStyle={{ paddingBottom: 100 }}
           showsVerticalScrollIndicator={false}
+          scrollEnabled={membershipStatus !== 'expired'}
         >
           {/* Membership Card - Flippable */}
           <View className="mx-5 mt-2" style={{ height: 220 }}>
             {/* Front Face */}
             <Animated.View
-              entering={FadeInUp.delay(200).duration(600)}
+              entering={membershipStatus === 'expired' ? undefined : FadeInUp.delay(200).duration(600)}
               style={[frontAnimatedStyle, { position: 'absolute', width: '100%' }]}
             >
-              <Pressable onPress={handleFlipCard}>
+              <Pressable onPress={() => membershipStatus !== 'expired' && handleFlipCard()}>
                 <View className="rounded-3xl overflow-hidden shadow-2xl">
                   <LinearGradient
                     colors={["#3d4a38", "#2d3a29", "#1a2318"]}
@@ -339,10 +344,12 @@ export default function MembershipScreen() {
                         </View>
                       </View>
                       <View className="items-end">
-                        <Text className="text-xs text-white/40">VALID THRU</Text>
-                        <Text className="text-lg font-bold text-sage-300">
-                          ∞
-                        </Text>
+                        <Text className="text-xs text-white/40">STATUS</Text>
+                        <View className={`px-2 py-0.5 rounded-md mt-1 ${membershipStatus === 'active' ? 'bg-green-500/20' : 'bg-red-500/20'}`}>
+                          <Text className={`text-sm font-bold ${membershipStatus === 'active' ? 'text-green-400' : 'text-red-400'} uppercase`}>
+                            {membershipStatus}
+                          </Text>
+                        </View>
                       </View>
                     </View>
 
@@ -378,7 +385,7 @@ export default function MembershipScreen() {
             <Animated.View
               style={[backAnimatedStyle, { position: 'absolute', width: '100%' }]}
             >
-              <Pressable onPress={handleFlipCard}>
+              <Pressable onPress={() => membershipStatus !== 'expired' && handleFlipCard()}>
                 <View className="rounded-3xl overflow-hidden shadow-2xl">
                   <LinearGradient
                     colors={["#1a2318", "#2d3a29", "#3d4a38"]}
@@ -427,7 +434,7 @@ export default function MembershipScreen() {
 
           {/* Benefits Banner */}
           <Animated.View
-            entering={FadeInUp.delay(300).duration(600)}
+            entering={membershipStatus === 'expired' ? undefined : FadeInUp.delay(300).duration(600)}
             className="mx-5 mt-6"
           >
             <View className="bg-sage-500/20 rounded-2xl p-4 flex-row items-center">
@@ -447,7 +454,7 @@ export default function MembershipScreen() {
 
           {/* Partner Businesses */}
           <Animated.View
-            entering={FadeInUp.delay(400).duration(600)}
+            entering={membershipStatus === 'expired' ? undefined : FadeInUp.delay(400).duration(600)}
             className="px-5 mt-6"
           >
             <View className="flex-row items-center mb-4">
@@ -468,13 +475,15 @@ export default function MembershipScreen() {
             {!discountsLoading && partnerBusinesses.map((partner: PartnerBusiness, index: number) => {
               const isLocked = plantLevel < partner.minLevelRequired;
 
+              // If fully expired, we still show the list but it's blurred by the overlay
+
               return (
                 <Animated.View
                   key={partner.id}
-                  entering={FadeInUp.delay(450 + index * 50).duration(500)}
+                  entering={membershipStatus === 'expired' ? undefined : FadeInUp.delay(450 + index * 50).duration(500)}
                 >
                   <Pressable
-                    onPress={() => !isLocked && handlePartnerPress(partner)}
+                    onPress={() => membershipStatus !== 'expired' && !isLocked && handlePartnerPress(partner)}
                     className={`bg-white/5 rounded-2xl mb-3 overflow-hidden ${isLocked ? 'opacity-60' : 'active:bg-white/10'}`}
                   >
                     <View className="flex-row">
@@ -566,7 +575,7 @@ export default function MembershipScreen() {
 
           {/* How to Use */}
           <Animated.View
-            entering={FadeInUp.delay(600).duration(600)}
+            entering={membershipStatus === 'expired' ? undefined : FadeInUp.delay(600).duration(600)}
             className="mx-5 mt-4 mb-6"
           >
             <View className="bg-white/5 rounded-2xl p-4">
@@ -600,6 +609,53 @@ export default function MembershipScreen() {
             </View>
           </Animated.View>
         </ScrollView>
+
+        {/* LOCKED OVERLAY - Only shown if expired */}
+        {membershipStatus === 'expired' && (
+          <View style={{ position: 'absolute', top: 60, left: 0, right: 0, bottom: 0, zIndex: 10 }}>
+            {/* Blur Effect */}
+            <BlurView
+              intensity={12}
+              tint="dark"
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+              }}
+            />
+
+            {/* Lock Message - Top Aligned */}
+            <View className="flex-1 items-center pt-12 px-8">
+              <Animated.View
+                entering={FadeInUp.delay(300).duration(600)}
+                className="items-center"
+              >
+                <View className="w-20 h-20 bg-sage-500/20 rounded-full items-center justify-center mb-6 backdrop-blur-md border border-white/10">
+                  <Lock size={40} color="#94a67e" />
+                </View>
+
+                <Text className="text-3xl font-bold text-white text-center mb-3">
+                  Member Access Locked
+                </Text>
+
+                <Text className="text-white/70 text-center mb-8 leading-6 text-base">
+                  You require a valid membership to access exclusive discounts and features.
+                </Text>
+
+                <View className="bg-white/5 rounded-2xl p-6 w-full items-center border border-white/10">
+                  <Text className="text-white/60 text-center mb-3 uppercase tracking-widest text-xs">
+                    Manage Account At
+                  </Text>
+                  <Text className="text-sage-300 text-xl tracking-wider font-serif select-text italic">
+                    almawellness.club
+                  </Text>
+                </View>
+              </Animated.View>
+            </View>
+          </View>
+        )}
       </SafeAreaView>
 
       {/* Partner Detail Modal */}

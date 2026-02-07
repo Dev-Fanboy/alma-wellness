@@ -16,6 +16,7 @@ export interface Profile {
     created_at: string;
     friends_garden_streak: number;
     friends_garden_last_met: string | null;
+    membership_status: "active" | "expired";
 }
 
 export interface Friendship {
@@ -68,7 +69,8 @@ export async function syncProgress(
     longestStreak: number,
     pointsToday: number,
     goalsCompletedToday: number,
-    totalGoalsToday: number
+    totalGoalsToday: number,
+    membershipStatus: "active" | "expired"
 ) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { error: { message: "Not authenticated" } };
@@ -82,6 +84,7 @@ export async function syncProgress(
             current_streak: currentStreak,
             longest_streak: longestStreak,
             last_active_at: new Date().toISOString(),
+            membership_status: membershipStatus,
         })
         .eq("id", user.id);
 

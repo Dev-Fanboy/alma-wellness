@@ -151,97 +151,97 @@ export async function cancelDailyReminder(): Promise<void> {
   }
 }
 
-export async function scheduleGoalReminder(
-  goalName: string,
-  delaySeconds: number = 3600
-): Promise<string> {
-  const motivationalMessage = getRandomMotivationalMessage();
-  const id = await Notifications.scheduleNotificationAsync({
-    content: {
-      title: `${goalName} Reminder`,
-      body: `${motivationalMessage}`,
-      data: { type: "goal-reminder", goalName },
-    },
-    trigger: {
-      type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
-      seconds: delaySeconds,
-    },
-  });
-  return id;
-}
-
-export async function scheduleDailyGoalReminder(
-  goalId: string,
-  goalName: string,
-  time: string
-): Promise<void> {
-  // Cancel any existing reminder for this goal
-  await cancelGoalSpecificReminder(goalId);
-
-  const [hours, minutes] = time.split(":").map(Number);
-  const motivationalMessage = getRandomMotivationalMessage();
-
-  await Notifications.scheduleNotificationAsync({
-    content: {
-      title: `${goalName} Reminder`,
-      body: motivationalMessage,
-      data: { type: "goal-specific-reminder", goalId, goalName },
-    },
-    trigger: {
-      type: Notifications.SchedulableTriggerInputTypes.DAILY,
-      hour: hours,
-      minute: minutes,
-    },
-  });
-}
-
-export async function scheduleIntervalGoalReminders(
-  goalId: string,
-  goalName: string,
-  startTime: string,
-  endTime: string,
-  intervalHours: number
-): Promise<void> {
-  // Cancel any existing reminders for this goal
-  await cancelGoalSpecificReminder(goalId);
-
-  const [startHours, startMinutes] = startTime.split(":").map(Number);
-  const [endHours, endMinutes] = endTime.split(":").map(Number);
-
-  // Calculate all reminder times between start and end
-  let currentHour = startHours;
-  let currentMinute = startMinutes;
-  const endTotalMinutes = endHours * 60 + endMinutes;
-
-  while (currentHour * 60 + currentMinute <= endTotalMinutes) {
-    const motivationalMessage = getRandomMotivationalMessage();
-
-    await Notifications.scheduleNotificationAsync({
-      content: {
-        title: `${goalName} Reminder`,
-        body: motivationalMessage,
-        data: { type: "goal-specific-reminder", goalId, goalName },
-      },
-      trigger: {
-        type: Notifications.SchedulableTriggerInputTypes.DAILY,
-        hour: currentHour,
-        minute: currentMinute,
-      },
-    });
-
-    // Add interval hours
-    currentHour += intervalHours;
-  }
-}
-
-export async function cancelGoalSpecificReminder(goalId: string): Promise<void> {
-  const notifications = await Notifications.getAllScheduledNotificationsAsync();
-  const goalReminders = notifications.filter(
-    (n) => n.content.data?.type === "goal-specific-reminder" && n.content.data?.goalId === goalId
+// Consolidated notification scheduler
+export async function rescheduleAllNotifications(): Promise<void> {
+  // 1. Cancel all existing goal-specific reminders
+  const allNotifications = await Notifications.getAllScheduledNotificationsAsync();
+  const goalReminders = allNotifications.filter(
+    (n) => n.content.data?.type === "goal-specific-reminder"
   );
 
   for (const reminder of goalReminders) {
     await Notifications.cancelScheduledNotificationAsync(reminder.identifier);
+  }
+
+  // 2. Get current settings
+  const settings = await getNotificationSettings();
+  if (!settings.enabled || !settings.goalSpecificReminders.length) return;
+
+  // 3. Collect all reminder triggers
+  const triggers: { hour: number; minute: number; goals: string[] }[] = [];
+
+  for (const setting of settings.goalSpecificReminders) {
+    if (!setting.enabled) continue;
+
+    if (setting.useInterval) {
+      // Interval logic
+      const [startH, startM] = setting.reminderTime.split(":").map(Number);
+      const [endH, endM] = setting.endTime.split(":").map(Number);
+      const interval = setting.intervalHours;
+
+      let currentH = startH;
+      let currentM = startM;
+      const endTotalM = endH * 60 + endM;
+
+      while (currentH * 60 + currentM <= endTotalM) {
+        addToTriggers(triggers, currentH, currentM, setting.goalName);
+        currentH += interval;
+      }
+    } else {
+      // Daily logic
+      const [h, m] = setting.reminderTime.split(":").map(Number);
+      addToTriggers(triggers, h, m, setting.goalName);
+    }
+  }
+
+  // 4. Schedule consolidated notifications
+  for (const trigger of triggers) {
+    const goalList = trigger.goals.join(", ");
+    // E.g. "Time for Walking, Hydration"
+    // If too many, truncate? "Walking, Hydration and 2 others"
+    let body = `Time for ${goalList}!`;
+    if (trigger.goals.length > 2) {
+      const firstTwo = trigger.goals.slice(0, 2).join(", ");
+      const remaining = trigger.goals.length - 2;
+      body = `Time for ${firstTwo} and ${remaining} others!`;
+    } else if (trigger.goals.length === 1) {
+      body = `${getRandomMotivationalMessage()}`; // Use motivation for single goal
+    }
+
+    const title = trigger.goals.length === 1
+      ? `${trigger.goals[0]} Reminder`
+      : "Wellness Reminder 🌿";
+
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: title,
+        body: body,
+        data: { type: "goal-specific-reminder" }, // Generic type for grouped
+      },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.DAILY,
+        hour: trigger.hour,
+        minute: trigger.minute,
+      },
+    });
+  }
+}
+
+function addToTriggers(
+  triggers: { hour: number; minute: number; goals: string[] }[],
+  hour: number,
+  minute: number,
+  goalName: string
+) {
+  // Normalize time (handle overflow if any, though interval logic above is simple)
+  // Find existing trigger for this time
+  const existing = triggers.find((t) => t.hour === hour && t.minute === minute);
+  if (existing) {
+    if (!existing.goals.includes(goalName)) {
+      existing.goals.push(goalName);
+    }
+  } else {
+    triggers.push({ hour, minute, goals: [goalName] });
   }
 }
 
@@ -260,23 +260,7 @@ export async function saveGoalNotificationSetting(
   }
 
   await saveNotificationSettings(settings);
-
-  // Schedule or cancel the notification based on the setting
-  if (setting.enabled && settings.enabled) {
-    if (setting.useInterval) {
-      await scheduleIntervalGoalReminders(
-        setting.goalId,
-        setting.goalName,
-        setting.reminderTime,
-        setting.endTime,
-        setting.intervalHours
-      );
-    } else {
-      await scheduleDailyGoalReminder(setting.goalId, setting.goalName, setting.reminderTime);
-    }
-  } else {
-    await cancelGoalSpecificReminder(setting.goalId);
-  }
+  await rescheduleAllNotifications();
 }
 
 export async function removeGoalNotificationSetting(goalId: string): Promise<void> {
@@ -285,7 +269,7 @@ export async function removeGoalNotificationSetting(goalId: string): Promise<voi
     (s) => s.goalId !== goalId
   );
   await saveNotificationSettings(settings);
-  await cancelGoalSpecificReminder(goalId);
+  await rescheduleAllNotifications();
 }
 
 export async function scheduleRetreatReminder(
@@ -320,6 +304,29 @@ export async function cancelAllNotifications(): Promise<void> {
   await Notifications.cancelAllScheduledNotificationsAsync();
 }
 
+export async function scheduleDailySeedNotification(): Promise<void> {
+  // Check if already scheduled to avoid duplicates (though ID collision handles this often, distinct type helps)
+  const notifications = await Notifications.getAllScheduledNotificationsAsync();
+  const hasDailySeed = notifications.some(
+    (n) => n.content.data?.type === "daily-seed"
+  );
+
+  if (hasDailySeed) return;
+
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title: "Today's Daily Seed 🌱",
+      body: "Discover your thought for the day. Tap to view.",
+      data: { type: "daily-seed", deepLink: "/(tabs)?action=openDailySeed" },
+    },
+    trigger: {
+      type: Notifications.SchedulableTriggerInputTypes.DAILY,
+      hour: 7,
+      minute: 0,
+    },
+  });
+}
+
 export async function initializeNotifications(): Promise<void> {
   const hasPermission = await requestNotificationPermissions();
 
@@ -329,8 +336,13 @@ export async function initializeNotifications(): Promise<void> {
 
   const settings = await getNotificationSettings();
 
-  if (settings.enabled && settings.dailyReminder) {
-    await scheduleDailyReminder(settings.dailyReminderTime);
+  if (settings.enabled) {
+    // Schedule Daily Seed (hardcoded 7am for now as per request)
+    await scheduleDailySeedNotification();
+
+    if (settings.dailyReminder) {
+      await scheduleDailyReminder(settings.dailyReminderTime);
+    }
   }
 }
 
