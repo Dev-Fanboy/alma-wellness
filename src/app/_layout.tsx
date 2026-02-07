@@ -129,8 +129,12 @@ function RootLayoutNav() {
     checkAndResetDaily();
     initializeNotifications();
     soundManager.init(); // Initialize sound manager
-    setIsReady(true);
-    SplashScreen.hideAsync();
+
+    // Delay splash screen hide for 2 seconds to show branding
+    const splashTimer = setTimeout(() => {
+      setIsReady(true);
+      SplashScreen.hideAsync();
+    }, 2000);
 
     // Listen for app state changes to trigger daily reset when coming from background
     const subscription = AppState.addEventListener("change", (nextAppState) => {
@@ -140,6 +144,7 @@ function RootLayoutNav() {
     });
 
     return () => {
+      clearTimeout(splashTimer);
       subscription.remove();
     };
   }, []);
