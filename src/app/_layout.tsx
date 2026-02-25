@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from "react";
 import { View, AppState, AppStateStatus } from "react-native";
 import { Stack, useRouter, useSegments, useRootNavigationState } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
+import * as Notifications from "expo-notifications";
 import { StatusBar } from "expo-status-bar";
 import { useColorScheme } from "@/lib/useColorScheme";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -109,6 +110,20 @@ function NavigationHandlerInner() {
 
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
+  const router = useRouter();
+
+  // Handle notification taps (e.g. Daily Seeds)
+  useEffect(() => {
+    const subscription = Notifications.addNotificationResponseReceivedListener(
+      (response) => {
+        const data = response.notification.request.content.data;
+        if (data?.type === "daily-seed") {
+          router.push("/(tabs)?action=openDailySeed");
+        }
+      }
+    );
+    return () => subscription.remove();
+  }, [router]);
 
   // Wellness state for celebration
   const checkAndResetDaily = useWellnessStore((s) => s.checkAndResetDaily);

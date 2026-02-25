@@ -29,16 +29,14 @@ export function useJournalSync() {
         const localIds = new Set(localEntries.map((e) => e.id));
         const newFromCloud = cloudEntries.filter((e) => !localIds.has(e.id));
 
-        // Add any entries from cloud that don't exist locally
-        newFromCloud.forEach((entry) => {
-            addJournalEntry({
-                date: entry.date,
-                content: entry.content,
-                mood: entry.mood,
-                prompt: entry.prompt,
+        // Add cloud entries directly to the store, preserving their original IDs
+        if (newFromCloud.length > 0) {
+            const store = useWellnessStore.getState();
+            useWellnessStore.setState({
+                journalEntries: [...newFromCloud, ...store.journalEntries],
             });
-        });
-    }, [user, localEntries, addJournalEntry]);
+        }
+    }, [user, localEntries]);
 
     // Push local entries to cloud (initial sync)
     const pushToCloud = useCallback(async () => {

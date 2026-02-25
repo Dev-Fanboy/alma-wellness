@@ -132,10 +132,16 @@ export default function HomeScreen() {
 
             {/* Greeting Row with Streak */}
             <View className="flex-row items-center justify-between">
-              <Text className="text-2xl font-light text-sage-900">
-                {getGreeting()}
-                {userName ? `, ${userName}` : ""}
-              </Text>
+              <View className="flex-1 mr-4">
+                <Text
+                  className="text-2xl font-light text-sage-900"
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                >
+                  {getGreeting()}
+                  {userName ? `, ${userName}` : ""}
+                </Text>
+              </View>
 
               <View className="items-end flex-row space-x-3">
                 {/* Daily Seeds Button */}

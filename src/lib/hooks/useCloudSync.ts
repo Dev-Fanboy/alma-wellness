@@ -1,8 +1,9 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useCallback } from "react";
 import { useAuth } from "@/lib/AuthContext";
 import { useWellnessStore } from "@/lib/store";
-import { updateProfile, getProfile, syncProgress, Profile } from "@/lib/api/profile";
+import { getProfile, syncAllData } from "@/lib/api/profile";
 import { supabase } from "@/lib/supabase";
+import { isAvatarRecentlySaved } from "@/lib/avatarUtils";
 
 /**
  * Hook to sync local wellness data with Supabase cloud
@@ -13,26 +14,12 @@ export function useCloudSync() {
     const { user, loading } = useAuth();
     const lastSyncRef = useRef<number>(0);
     const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
+    const debouncedSyncRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    // Local store getters
-    // Note: for pushToCloud we use getState() to ensure fresh values, 
-    // but we keep these for dependencies array
+    // Fix #8: Minimal subscriptions - only subscribe to what triggers a sync
     const plantLevel = useWellnessStore((s) => s.plantLevel);
     const plantPoints = useWellnessStore((s) => s.plantPoints);
     const currentStreak = useWellnessStore((s) => s.currentStreak);
-
-    // Local store setters
-    const setUserName = useWellnessStore((s) => s.setUserName);
-    const setUserAvatar = useWellnessStore((s) => s.setUserAvatar);
-    const setUserAgeRange = useWellnessStore((s) => s.setUserAgeRange);
-    const setUserWellnessFocus = useWellnessStore((s) => s.setUserWellnessFocus);
-    const setInviteCode = useWellnessStore((s) => s.setInviteCode);
-    const setMembershipStatus = useWellnessStore((s) => s.setMembershipStatus);
-    const inviteCode = useWellnessStore((s) => s.inviteCode);
-    const userAgeRange = useWellnessStore((s) => s.userAgeRange);
-    const userWellnessFocus = useWellnessStore((s) => s.userWellnessFocus);
-    const userAvatar = useWellnessStore((s) => s.userAvatar);
-    const userName = useWellnessStore((s) => s.userName);
 
     // Get today's progress
     const getTodayProgress = () => {
@@ -47,54 +34,68 @@ export function useCloudSync() {
     };
 
     // Download profile from cloud and merge with local
-    const pullFromCloud = async () => {
+    const pullFromCloud = useCallback(async () => {
         if (!user) return;
 
         try {
             const cloudProfile = await getProfile();
-            if (cloudProfile) {
-                // Use cloud name if local is empty
-                if (!userName && cloudProfile.name) {
-                    setUserName(cloudProfile.name);
-                }
-                // Use cloud avatar ONLY if:
-                // 1. Cloud has a valid avatar URL
-                // 2. Local avatar is a default Unsplash placeholder OR empty
-                // This prevents overwriting user's custom uploaded photos
-                const isLocalDefault = !userAvatar || userAvatar.includes("unsplash.com");
-                const cloudHasRealAvatar = cloudProfile.avatar_url &&
-                    cloudProfile.avatar_url.length > 0 &&
-                    !cloudProfile.avatar_url.includes("unsplash.com");
+            if (!cloudProfile) return;
 
-                if (cloudProfile.avatar_url && (isLocalDefault || cloudHasRealAvatar)) {
-                    // Only update if cloud has a better avatar (uploaded vs default)
-                    if (cloudHasRealAvatar || (isLocalDefault && cloudProfile.avatar_url !== userAvatar)) {
-                        setUserAvatar(cloudProfile.avatar_url);
+            const state = useWellnessStore.getState();
+
+            // Use cloud name if local is empty
+            if (!state.userName && cloudProfile.name) {
+                state.setUserName(cloudProfile.name);
+            }
+
+            // Only update avatar from cloud if not recently saved locally
+            const recentlySaved = await isAvatarRecentlySaved();
+            if (!recentlySaved && cloudProfile.avatar_url) {
+                const isLocalEmpty = !state.userAvatar || state.userAvatar.includes("unsplash.com");
+                if (isLocalEmpty || cloudProfile.avatar_url === state.userAvatar) {
+                    if (cloudProfile.avatar_url !== state.userAvatar) {
+                        state.setUserAvatar(cloudProfile.avatar_url);
                     }
                 }
-                // Sync age range and wellness focus
-                if (cloudProfile.age_range && !userAgeRange) {
-                    setUserAgeRange(cloudProfile.age_range);
-                }
-                if (cloudProfile.wellness_focus && !userWellnessFocus) {
-                    setUserWellnessFocus(cloudProfile.wellness_focus);
-                }
-                // Sync invite code (server authority)
-                if (cloudProfile.invite_code && cloudProfile.invite_code !== inviteCode) {
-                    setInviteCode(cloudProfile.invite_code);
-                }
-                // Sync membership status (server authority)
-                if (cloudProfile.membership_status) {
-                    setMembershipStatus(cloudProfile.membership_status);
-                }
+            }
+
+            // Sync age range and wellness focus
+            if (cloudProfile.age_range && !state.userAgeRange) {
+                state.setUserAgeRange(cloudProfile.age_range);
+            }
+            if (cloudProfile.wellness_focus && !state.userWellnessFocus) {
+                state.setUserWellnessFocus(cloudProfile.wellness_focus);
+            }
+
+            // Sync invite code (server authority)
+            if (cloudProfile.invite_code && cloudProfile.invite_code !== state.inviteCode) {
+                state.setInviteCode(cloudProfile.invite_code);
+            }
+
+            // Sync membership status (server authority)
+            const validStatus = cloudProfile.membership_status === 'active' ? 'active' : 'expired';
+            state.setMembershipStatus(validStatus);
+
+            // Sync progress data - use highest values
+            if (cloudProfile.plant_level > state.plantLevel) {
+                state.setPlantLevel(cloudProfile.plant_level);
+            }
+            if (cloudProfile.plant_points > state.plantPoints) {
+                state.setPlantPoints(cloudProfile.plant_points);
+            }
+            if (cloudProfile.current_streak > state.currentStreak) {
+                state.setCurrentStreak(cloudProfile.current_streak);
+            }
+            if (cloudProfile.longest_streak > state.longestStreak) {
+                state.setLongestStreak(cloudProfile.longest_streak);
             }
         } catch (error) {
             console.error("Error pulling from cloud:", error);
         }
-    };
+    }, [user]);
 
-    // Push local data to cloud
-    const pushToCloud = async () => {
+    // Fix #6: Combined push using syncAllData with cached user ID
+    const pushToCloud = useCallback(async () => {
         if (!user) return;
 
         const now = Date.now();
@@ -112,33 +113,35 @@ export function useCloudSync() {
         }
 
         try {
-            // Update profile
-            await updateProfile({
-                name: state.userName,
-                avatar_url: state.userAvatar,
-                age_range: state.userAgeRange,
-                wellness_focus: state.userWellnessFocus,
-                invite_code: freshInviteCode, // Ensure local invite code is synced to cloud
-            });
-
-            // Sync daily progress
             const { pointsToday, goalsCompletedToday, totalGoalsToday } = getTodayProgress();
 
-            // Use fresh state for all values
-            await syncProgress(
-                state.plantLevel,
-                state.plantPoints,
-                state.currentStreak,
-                state.longestStreak,
-                pointsToday,
-                goalsCompletedToday,
-                totalGoalsToday,
-                state.membershipStatus
+            // Single combined call using cached user.id — no getUser() roundtrips
+            await syncAllData(
+                user.id,
+                {
+                    name: state.userName,
+                    avatar_url: state.userAvatar,
+                    age_range: state.userAgeRange,
+                    wellness_focus: state.userWellnessFocus,
+                    invite_code: freshInviteCode,
+                },
+                {
+                    plant_level: state.plantLevel,
+                    plant_points: state.plantPoints,
+                    current_streak: state.currentStreak,
+                    longest_streak: state.longestStreak,
+                    membership_status: state.membershipStatus,
+                },
+                {
+                    points_earned: pointsToday,
+                    goals_completed: goalsCompletedToday,
+                    total_goals: totalGoalsToday,
+                }
             );
         } catch (error) {
             console.error("Error pushing to cloud:", error);
         }
-    };
+    }, [user]);
 
     // Initial sync on auth change
     useEffect(() => {
@@ -159,11 +162,26 @@ export function useCloudSync() {
         };
     }, [user, loading]);
 
-    // Sync when key data changes
+    // Debounced sync when key data changes (prevents rapid-fire on goal completion)
     useEffect(() => {
-        if (user && !loading) {
-            pushToCloud();
+        if (!user || loading) return;
+
+        // Clear any pending debounced sync
+        if (debouncedSyncRef.current) {
+            clearTimeout(debouncedSyncRef.current);
         }
+
+        // Debounce by 2 seconds — multiple goal completions in quick succession
+        // will only trigger a single sync
+        debouncedSyncRef.current = setTimeout(() => {
+            pushToCloud();
+        }, 2000);
+
+        return () => {
+            if (debouncedSyncRef.current) {
+                clearTimeout(debouncedSyncRef.current);
+            }
+        };
     }, [plantLevel, plantPoints, currentStreak]);
 
     // Subscribe to real-time profile updates (e.g. membership status change)
@@ -181,7 +199,6 @@ export function useCloudSync() {
                     filter: `id=eq.${user.id}`,
                 },
                 (payload: any) => {
-                    console.log("Profile updated from cloud:", payload);
                     // Re-sync from cloud to get latest membership status etc.
                     pullFromCloud();
                 }

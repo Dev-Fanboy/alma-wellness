@@ -14,6 +14,7 @@ import {
   Alert,
 } from "react-native";
 import PagerView from "react-native-pager-view";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import Animated, {
@@ -48,6 +49,7 @@ import {
   ChevronRight,
   LogOut,
   Trash2,
+  User,
 } from "lucide-react-native";
 import { useWellnessStore, Friend } from "@/lib/store";
 import { Plant } from "@/components/Plant";
@@ -119,6 +121,16 @@ export default function GardenScreen() {
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [nudgedUsers, setNudgedUsers] = useState<Set<string>>(new Set());
+  const [cheeredMilestones, setCheeredMilestones] = useState<Record<string, number>>({});
+
+  // Load cheered milestones from AsyncStorage on mount
+  useEffect(() => {
+    AsyncStorage.getItem("cheered-milestones").then((val: string | null) => {
+      if (val) {
+        try { setCheeredMilestones(JSON.parse(val)); } catch { }
+      }
+    });
+  }, []);
 
   // Groves (custom community gardens)
   const {
@@ -416,23 +428,45 @@ export default function GardenScreen() {
   };
 
   const sendNudge = useCallback(
-    async (userId: string, userName: string) => {
+    async (userId: string, userName: string, type: 'rain' | 'cheer' = 'rain', streak?: number) => {
       if (nudgedUsers.has(userId)) return;
 
+      if (type === 'cheer') {
+        playSuccess(); // Play success/fire sound for cheer
+      } else {
+        playWaterDrop(); // Play water drop sound for sending rain
+      }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      playWaterDrop(); // Play water drop sound for sending rain
 
       // Mark as nudged locally immediately for optimistic UI
       setNudgedUsers((prev) => new Set(prev).add(userId));
 
+      // Persist cheered milestone so button stays hidden after restart
+      if (type === 'cheer' && streak) {
+        setCheeredMilestones((prev) => {
+          const updated = { ...prev, [userId]: streak };
+          AsyncStorage.setItem("cheered-milestones", JSON.stringify(updated));
+          return updated;
+        });
+      }
+
       // Show toast
-      setToastMessage(`You sent rain to ${userName}! +10 XP`);
+      let msg = type === 'cheer'
+        ? `You cheered on ${userName}! 🔥`
+        : `You sent rain to ${userName}! +10 XP`;
+
+      if (type === 'cheer' && streak) {
+        if (streak >= 30) msg = `You celebrated ${userName}'s ${streak} day streak! 🏆`;
+        else if (streak >= 7) msg = `You celebrated ${userName}'s ${streak} day streak! 🌟`;
+      }
+
+      setToastMessage(msg);
       setTimeout(() => setToastMessage(null), 2500);
 
       // Send to cloud
       if (isAuthenticated) {
         try {
-          await sendNudgeApi(userId);
+          await sendNudgeApi(userId, type, streak);
         } catch (e) {
           console.error("Failed to send nudge", e);
         }
@@ -595,10 +629,16 @@ export default function GardenScreen() {
                   {pendingRequests.map((request) => (
                     <View key={request.id} className="bg-white rounded-2xl p-3 mb-2 flex-row items-center justify-between shadow-sm">
                       <View className="flex-row items-center flex-1 mr-2">
-                        <Image
-                          source={{ uri: request.friend?.avatar_url || "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100" }}
-                          className="w-10 h-10 rounded-full bg-sage-100"
-                        />
+                        {(request.friend?.avatar_url) ? (
+                          <Image
+                            source={{ uri: request.friend.avatar_url }}
+                            className="w-10 h-10 rounded-full bg-sage-100"
+                          />
+                        ) : (
+                          <View className="w-10 h-10 rounded-full bg-sage-200 items-center justify-center">
+                            <User size={20} color="#94a67e" />
+                          </View>
+                        )}
                         <View className="ml-3 flex-1">
                           <Text className="text-sage-900 font-semibold" numberOfLines={1}>
                             {request.friend?.name || "Unknown"}
@@ -649,7 +689,7 @@ export default function GardenScreen() {
                   ...m,
                   id: m.id,
                   name: m.name,
-                  avatar: (m as any).avatar || (m as any).avatar_url || "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=200",
+                  avatar: (m as any).avatar || (m as any).avatar_url || "",
                   plantLevel: m.plantLevel,
                   totalPoints: m.totalPoints,
                   weeklyPoints: m.weeklyPoints,
@@ -662,6 +702,7 @@ export default function GardenScreen() {
                 onMemberPress={(member) => handleFriendPress(member as any)}
                 onSendNudge={sendNudge}
                 nudgedUsers={nudgedUsers}
+                cheeredMilestones={cheeredMilestones}
                 loading={friendsLoading}
                 isCustomGrove={false}
               />
@@ -710,6 +751,7 @@ export default function GardenScreen() {
                     onMemberPress={(member) => handleFriendPress(member as any)}
                     onSendNudge={sendNudge}
                     nudgedUsers={nudgedUsers}
+                    cheeredMilestones={cheeredMilestones}
                     loading={grovesLoading}
                     isCustomGrove={true}
                     groveName={grove.name}
@@ -984,13 +1026,31 @@ export default function GardenScreen() {
                   !nudgedUsers.has(selectedFriend.id) && (
                     <Pressable
                       onPress={() => {
-                        sendNudge(selectedFriend.id, selectedFriend.name);
+                        sendNudge(selectedFriend.id, selectedFriend.name, 'rain');
                       }}
                       className="bg-sage-500 rounded-2xl py-3 mb-3 flex-row items-center justify-center"
                     >
                       <CloudRain size={20} color="white" />
                       <Text className="text-white font-semibold ml-2">
                         Send Rain to Help
+                      </Text>
+                    </Pressable>
+                  )}
+
+                {/* Cheer Button for Performing Friends */}
+                {!isWilting(selectedFriend.lastActive) &&
+                  (selectedFriend.currentStreak ?? 0) >= 3 &&
+                  (selectedFriend.currentStreak ?? 0) > (cheeredMilestones[selectedFriend.id] || 0) &&
+                  !nudgedUsers.has(selectedFriend.id) && (
+                    <Pressable
+                      onPress={() => {
+                        sendNudge(selectedFriend.id, selectedFriend.name, 'cheer');
+                      }}
+                      className="bg-orange-500 rounded-2xl py-3 mb-3 flex-row items-center justify-center"
+                    >
+                      <Flame size={20} color="white" />
+                      <Text className="text-white font-semibold ml-2">
+                        Cheer Friend
                       </Text>
                     </Pressable>
                   )}
@@ -1056,7 +1116,7 @@ export default function GardenScreen() {
         streakDays={currentGroveStreak}
         topGardener={currentMembers?.sort((a, b) => (b.weeklyPoints || 0) - (a.weeklyPoints || 0))[0] ? {
           name: currentMembers.sort((a, b) => (b.weeklyPoints || 0) - (a.weeklyPoints || 0))[0].name,
-          avatar: (currentMembers[0] as any).avatar_url || (currentMembers[0] as any).avatar || "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=200",
+          avatar: (currentMembers[0] as any).avatar_url || (currentMembers[0] as any).avatar || "",
           points: currentMembers[0].weeklyPoints || 0
         } : undefined}
       />

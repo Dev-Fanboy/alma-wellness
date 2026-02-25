@@ -140,6 +140,12 @@ interface WellnessState {
   removeGoal: (id: string) => void;
   updateGoalProgress: (id: string, progress: number) => void;
   completeGoal: (id: string) => void;
+  // Cloud sync setters
+  setPlantLevel: (level: number) => void;
+  setPlantPoints: (points: number) => void;
+  setCurrentStreak: (streak: number) => void;
+  setLongestStreak: (streak: number) => void;
+
   checkAndResetDaily: () => {
     newDay: boolean;
     streakBroken: boolean;
@@ -265,68 +271,7 @@ const DEFAULT_ACHIEVEMENTS: Achievement[] = [
   },
 ];
 
-const MOCK_FRIENDS: Friend[] = [
-  {
-    id: "1",
-    name: "Sarah",
-    avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100",
-    plantLevel: 12,
-    totalPoints: 1450,
-    isOnline: true,
-    weeklyPoints: 280,
-    currentStreak: 5,
-    joinedAt: "2025-11-15T00:00:00.000Z",
-    lastActive: 2, // active 2 hours ago
-  },
-  {
-    id: "2",
-    name: "Emma",
-    avatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100",
-    plantLevel: 8,
-    totalPoints: 980,
-    isOnline: false,
-    weeklyPoints: 195,
-    currentStreak: 3,
-    joinedAt: "2025-12-01T00:00:00.000Z",
-    lastActive: 72, // wilting - inactive for 3 days
-  },
-  {
-    id: "3",
-    name: "Maya",
-    avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100",
-    plantLevel: 15,
-    totalPoints: 1820,
-    isOnline: false,
-    weeklyPoints: 350,
-    currentStreak: 12,
-    joinedAt: "2025-10-20T00:00:00.000Z",
-    lastActive: 56, // wilting - inactive for over 2 days
-  },
-  {
-    id: "4",
-    name: "Luna",
-    avatar: "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=100",
-    plantLevel: 6,
-    totalPoints: 720,
-    isOnline: true,
-    weeklyPoints: 140,
-    currentStreak: 2,
-    joinedAt: "2025-12-10T00:00:00.000Z",
-    lastActive: 1, // active 1 hour ago
-  },
-  {
-    id: "5",
-    name: "Aria",
-    avatar: "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=100",
-    plantLevel: 10,
-    totalPoints: 1200,
-    isOnline: false,
-    weeklyPoints: 220,
-    currentStreak: 7,
-    joinedAt: "2025-11-05T00:00:00.000Z",
-    lastActive: 24, // active 1 day ago (not wilting yet)
-  },
-];
+const MOCK_FRIENDS: Friend[] = [];
 
 const getPlantStage = (
   level: number
@@ -403,6 +348,12 @@ export const useWellnessStore = create<WellnessState>()(
       setUserWellnessFocus: (focus) => set({ userWellnessFocus: focus }),
       setInviteCode: (code) => set({ inviteCode: code }),
       setPendingInviteCode: (code) => set({ pendingInviteCode: code }),
+
+      // Cloud sync setters
+      setPlantLevel: (level) => set({ plantLevel: level, plantStage: getPlantStage(level) }),
+      setPlantPoints: (points) => set({ plantPoints: points }),
+      setCurrentStreak: (streak) => set({ currentStreak: streak }),
+      setLongestStreak: (streak) => set({ longestStreak: streak }),
 
       setGoals: (goals) => set({ goals }),
 
@@ -505,28 +456,62 @@ export const useWellnessStore = create<WellnessState>()(
 
           // Update achievement progress based on goal type
           const updatedAchievements = state.achievements.map((ach) => {
+            let newProgress = ach.progress;
             if (goal.type === "hydration" && ach.id === "hydration_hero") {
-              return { ...ach, progress: ach.progress + 1 };
+              newProgress = ach.progress + 1;
             }
             if (goal.type === "meditation" && ach.id === "mindful_master") {
-              return { ...ach, progress: ach.progress + 1 };
+              newProgress = ach.progress + 1;
             }
             if (goal.type === "walking" && ach.id === "step_champion") {
-              return { ...ach, progress: ach.progress + 1 };
+              newProgress = ach.progress + 1;
             }
             if (ach.id === "first_bloom") {
-              return { ...ach, progress: newLevel };
+              newProgress = newLevel;
             }
             if (ach.id === "week_warrior") {
-              return { ...ach, progress: newStreak };
+              newProgress = newStreak;
+            }
+            if (newProgress !== ach.progress) {
+              return {
+                ...ach,
+                progress: newProgress,
+                unlockedAt:
+                  newProgress >= ach.requirement && !ach.unlockedAt
+                    ? new Date().toISOString()
+                    : ach.unlockedAt,
+              };
             }
             return ach;
           });
 
+          // Update today's entry in dailyHistory so cloud sync gets accurate data
+          const updatedGoals = state.goals.map((g) =>
+            g.id === id ? { ...g, current: g.target } : g
+          );
+          const completedCount = updatedGoals.filter(g => g.current >= g.target).length;
+          const todayPoints = updatedGoals
+            .filter(g => g.current >= g.target)
+            .reduce((sum, g) => sum + g.points, 0);
+
+          const existingTodayIdx = state.dailyHistory.findIndex(d => d.date === today);
+          const todayEntry: DailyProgress = {
+            date: today,
+            goalsCompleted: completedCount,
+            totalGoals: updatedGoals.length,
+            pointsEarned: todayPoints,
+            goalDetails: updatedGoals.map(g => ({
+              goalId: g.id,
+              completed: g.current >= g.target,
+            })),
+          };
+
+          const updatedHistory = existingTodayIdx >= 0
+            ? state.dailyHistory.map((d, i) => i === existingTodayIdx ? todayEntry : d)
+            : [...state.dailyHistory, todayEntry].slice(-30);
+
           set({
-            goals: state.goals.map((g) =>
-              g.id === id ? { ...g, current: g.target } : g
-            ),
+            goals: updatedGoals,
             plantPoints: newPoints,
             plantLevel: newLevel,
             plantStage: getPlantStage(newLevel),
@@ -534,6 +519,7 @@ export const useWellnessStore = create<WellnessState>()(
             longestStreak: newLongestStreak,
             lastActiveDate: newLastActiveDate,
             achievements: updatedAchievements,
+            dailyHistory: updatedHistory,
           });
         }
       },

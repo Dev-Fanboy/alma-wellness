@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { supabase, onAuthStateChange, getSession } from "@/lib/supabase";
+import { supabase, onAuthStateChange } from "@/lib/supabase";
 import { registerForPushNotifications, unregisterPushNotifications } from "@/lib/api/notifications";
 import * as Notifications from "expo-notifications";
 import { useWellnessStore } from "./store";
@@ -72,14 +72,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     useEffect(() => {
-        // Get initial session
-        getSession().then((sess) => {
-            setSession(sess);
-            setLoading(false);
-
-            // Check for notification prompt if logged in
-            if (sess?.user) {
-                checkAndShowNotificationPrompt();
+        // Get initial session — use getUser() for server-side validation
+        supabase.auth.getUser().then(({ data: { user } }) => {
+            if (user) {
+                // User is valid; get the session for state
+                supabase.auth.getSession().then(({ data: { session } }) => {
+                    setSession(session);
+                    setLoading(false);
+                    checkAndShowNotificationPrompt();
+                });
+            } else {
+                setSession(null);
+                setLoading(false);
             }
         });
 
@@ -103,12 +107,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }, []);
 
     const handleSignOut = async () => {
-        // Clear local app state (Zustand)
-        useWellnessStore.getState().resetAllData();
+        try {
+            // Attempt to unregister push notifications (fire and forget / non-blocking)
+            unregisterPushNotifications().catch(err =>
+                console.log("Failed to unregister push notifications:", err)
+            );
 
-        await unregisterPushNotifications();
-        await supabase.auth.signOut();
-        setSession(null);
+            // Attempt to sign out from Supabase
+            const { error } = await supabase.auth.signOut();
+            if (error) {
+                console.error("Error signing out:", error);
+            }
+        } catch (error) {
+            console.error("Unexpected error during sign out:", error);
+        } finally {
+            // ALWAYS clear local state and session, regardless of network success
+            useWellnessStore.getState().resetAllData();
+            setSession(null);
+        }
     };
 
     return (

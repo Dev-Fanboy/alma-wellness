@@ -5,6 +5,7 @@ export interface Nudge {
     from_user_id: string;
     to_user_id: string;
     message: string;
+    type?: 'rain' | 'cheer';
     read: boolean;
     created_at: string;
     sender?: {
@@ -13,17 +14,31 @@ export interface Nudge {
     };
 }
 
-// Send a nudge (rain) to a friend
-export async function sendNudge(toUserId: string, message?: string) {
+// Send a nudge (rain) or cheer to a friend
+// Push notifications are handled server-side by the Edge Function via Database Webhook
+export async function sendNudge(toUserId: string, type: 'rain' | 'cheer' = 'rain', streak?: number) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { error: { message: "Not authenticated" } };
+
+    let message = "sent you some rain! 🌧️";
+
+    if (type === 'cheer') {
+        if (streak && streak >= 30) {
+            message = `celebrated your ${streak}-day streak! 🏆`;
+        } else if (streak && streak >= 7) {
+            message = `is amazed by your ${streak}-day streak! 🌟`;
+        } else {
+            message = "cheered you on for your streak! 🔥";
+        }
+    }
 
     const { data, error } = await supabase
         .from("nudges")
         .insert({
             from_user_id: user.id,
             to_user_id: toUserId,
-            message: message || "sent you some rain! 🌧️",
+            message: message,
+            type: type,
         })
         .select()
         .single();

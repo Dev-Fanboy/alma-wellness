@@ -48,30 +48,53 @@ interface Retreat {
     isUpcoming: boolean;
     isAlmaExclusive: boolean;
     theme: string;
-    price: string;
+    price: string | number;
+    currency: string;
     includes: string[];
     facilitator: string;
     registrationUrl: string;
 }
 
 function transformRetreat(r: RetreatType): Retreat {
+    const today = new Date();
+    // Use the display date string for isPast calculation since start_date column is missing
+    const startDate = new Date(r.date);
+    const isPast = startDate < today;
+
+    // Parse includes: handle both array (new schema) and string (legacy/fallback)
+    let includesList: string[] = [];
+    if (Array.isArray(r.includes)) {
+        includesList = r.includes;
+    } else if (typeof r.includes === 'string') {
+        // @ts-ignore - handling potential legacy string data
+        const str = r.includes as string;
+        if (str.includes(',')) {
+            includesList = str.split(',').map(s => s.trim());
+        } else if (str.includes('\n')) {
+            includesList = str.split('\n').map(s => s.trim());
+        } else {
+            includesList = [str];
+        }
+    }
+
     return {
         id: r.id,
         title: r.title,
         description: r.description,
         fullDescription: r.full_description,
         date: r.date,
-        time: r.time,
+        time: "", // Removed from schema, leaving empty or could try to parse from date string if present
         location: r.location,
-        attendees: r.attendees,
+        attendees: 0, // Removed from schema
         maxAttendees: r.max_attendees,
         imageUrl: r.image_url,
-        isPast: r.is_past,
-        isUpcoming: r.is_upcoming,
+        isPast: isPast,
+        isUpcoming: !isPast,
         isAlmaExclusive: r.is_alma_exclusive,
         theme: r.theme,
         price: r.price,
-        includes: r.includes || [],
+        currency: r.currency || 'USD',
+        includes: includesList,
         facilitator: r.facilitator,
         registrationUrl: r.registration_url || "",
     };
@@ -98,6 +121,16 @@ function RetreatCard({
             } catch {
                 // URL failed to open - silently ignore
             }
+        }
+    };
+
+    const getCurrencySymbol = (currency: string) => {
+        switch (currency?.toUpperCase()) {
+            case 'USD': return '$';
+            case 'EUR': return '€';
+            case 'GBP': return '£';
+            case 'NGN': return '₦';
+            default: return currency || '$';
         }
     };
 
@@ -144,18 +177,20 @@ function RetreatCard({
                                     Attended
                                 </Text>
                             </View>
-                        ) : (
-                            <View className="bg-blue-500 rounded-full px-3 py-1">
-                                <Text className="text-white text-xs font-semibold">
-                                    {spotsLeft} spots left
-                                </Text>
-                            </View>
-                        )}
+                        ) : null}
                     </View>
                     {/* Price tag */}
                     <View className="absolute top-3 right-3 bg-white/90 rounded-full px-3 py-1">
                         <Text className="text-sage-800 text-xs font-bold">
-                            {retreat.price}
+                            {(() => {
+                                const symbol = getCurrencySymbol(retreat.currency);
+                                if (typeof retreat.price === 'number') {
+                                    return `${symbol}${retreat.price.toLocaleString()}`;
+                                }
+                                // If string, check if it already has a currency symbol (other than comma/dot)
+                                const hasSymbol = /[^0-9,.]/.test(retreat.price);
+                                return hasSymbol ? retreat.price : `${symbol}${retreat.price}`;
+                            })()}
                         </Text>
                     </View>
                     {/* Theme tag */}
@@ -191,10 +226,7 @@ function RetreatCard({
                             <Calendar size={14} color="#778b5f" />
                             <Text className="text-sage-600 text-xs ml-1">{retreat.date}</Text>
                         </View>
-                        <View className="flex-row items-center mr-4 mb-2">
-                            <Clock size={14} color="#778b5f" />
-                            <Text className="text-sage-600 text-xs ml-1">{retreat.time}</Text>
-                        </View>
+                        {/* Time removed from schema */}
                     </View>
                     <View className="flex-row items-center">
                         <MapPin size={14} color="#778b5f" />
@@ -271,7 +303,7 @@ function RetreatCard({
                         <View className="flex-row items-center">
                             <Users size={14} color="#94a67e" />
                             <Text className="text-sage-500 text-xs ml-1">
-                                {retreat.attendees}/{retreat.maxAttendees} attending
+                                {retreat.maxAttendees} max capacity
                             </Text>
                         </View>
                         <View className="flex-row items-center">

@@ -8,6 +8,8 @@ import {
     CloudRain,
     Droplet,
     Target,
+    Trophy,
+    User,
 } from "lucide-react-native";
 import { Plant } from "@/components/Plant";
 import { Friend } from "@/lib/store";
@@ -32,8 +34,9 @@ interface GroveMember {
 interface GroveContentProps {
     members: GroveMember[];
     onMemberPress: (member: GroveMember) => void;
-    onSendNudge: (userId: string, userName: string) => void;
+    onSendNudge: (userId: string, userName: string, type: 'rain' | 'cheer', streak?: number) => void;
     nudgedUsers: Set<string>;
+    cheeredMilestones: Record<string, number>;
     loading?: boolean;
     isCustomGrove?: boolean;
     groveName?: string;
@@ -44,6 +47,7 @@ export function GroveContent({
     onMemberPress,
     onSendNudge,
     nudgedUsers,
+    cheeredMilestones,
     loading = false,
     isCustomGrove = false,
     groveName,
@@ -82,6 +86,13 @@ export function GroveContent({
 
     // For the plant grid, keep original order but show top 24
     const gridMembers = members.slice(0, 24);
+
+    // Get cheer configuration based on streak
+    const getCheerConfig = (streak: number) => {
+        if (streak >= 30) return { icon: Trophy, color: "#FFD700", bg: "bg-yellow-500", iconColor: "white" }; // Gold
+        if (streak >= 7) return { icon: Sparkles, color: "#fbbf24", bg: "bg-amber-400", iconColor: "white" }; // Star/Amber
+        return { icon: Flame, color: "#f97316", bg: "bg-orange-500", iconColor: "white" }; // Fire/Orange
+    };
 
     if (loading) {
         return (
@@ -211,7 +222,7 @@ export function GroveContent({
                             Garden Care
                         </Text>
                     </View>
-                    <Text className="text-xs text-sage-500">Help wilting plants</Text>
+                    <Text className="text-xs text-sage-500">Help / Cheer friends</Text>
                 </View>
             </Animated.View>
 
@@ -220,6 +231,11 @@ export function GroveContent({
                 {sortedByNeed.map((member, index) => {
                     const wilting = isWilting(member.lastActive);
                     const alreadyNudged = nudgedUsers.has(member.id);
+                    const lastCheeredStreak = cheeredMilestones[member.id] || 0;
+                    const isPerforming = !wilting && (member.currentStreak ?? 0) >= 3 && (member.currentStreak ?? 0) > lastCheeredStreak;
+
+                    const cheerConfig = isPerforming ? getCheerConfig(member.currentStreak || 0) : null;
+                    const CheerIcon = cheerConfig?.icon || Flame;
 
                     return (
                         <Animated.View
@@ -233,16 +249,20 @@ export function GroveContent({
                                     ? "bg-sage-100"
                                     : wilting
                                         ? "bg-amber-50"
-                                        : "bg-white"
+                                        : isPerforming
+                                            ? "bg-white border border-orange-100"
+                                            : "bg-white"
                                     }`}
                             >
                                 {/* Status Indicator */}
                                 <View
-                                    className={`w-8 h-8 rounded-full items-center justify-center ${wilting ? "bg-amber-100" : "bg-sage-100"
-                                        }`}
+                                    className={`w-8 h-8 rounded-full items-center justify-center ${wilting ? "bg-amber-100" : "bg-sage-100"}`}
+                                    style={isPerforming && cheerConfig ? { backgroundColor: cheerConfig.color + '20' } : {}}
                                 >
                                     {wilting ? (
                                         <Droplet size={18} color="#d97706" />
+                                    ) : isPerforming ? (
+                                        <CheerIcon size={18} color={cheerConfig?.color} />
                                     ) : (
                                         <Flower2 size={18} color="#778b5f" />
                                     )}
@@ -250,11 +270,17 @@ export function GroveContent({
 
                                 {/* Avatar */}
                                 <View className="relative ml-3">
-                                    <Image
-                                        source={{ uri: member.avatar }}
-                                        className="w-12 h-12 rounded-full"
-                                        style={{ opacity: wilting ? 0.7 : 1 }}
-                                    />
+                                    {member.avatar ? (
+                                        <Image
+                                            source={{ uri: member.avatar }}
+                                            className="w-12 h-12 rounded-full"
+                                            style={{ opacity: wilting ? 0.7 : 1 }}
+                                        />
+                                    ) : (
+                                        <View className="w-12 h-12 rounded-full bg-sage-200 items-center justify-center">
+                                            <User size={24} color="#94a67e" />
+                                        </View>
+                                    )}
                                     {member.isOnline && (
                                         <View className="absolute bottom-0 right-0 w-3 h-3 bg-green-400 rounded-full border-2 border-white" />
                                     )}
@@ -317,7 +343,7 @@ export function GroveContent({
                                     </View>
                                 ) : wilting ? (
                                     <Pressable
-                                        onPress={() => onSendNudge(member.id, member.name)}
+                                        onPress={() => onSendNudge(member.id, member.name, 'rain')}
                                         disabled={alreadyNudged}
                                         className={`w-10 h-10 rounded-full items-center justify-center ${alreadyNudged ? "bg-sage-200" : "bg-sage-500"
                                             }`}
@@ -327,6 +353,19 @@ export function GroveContent({
                                             color={alreadyNudged ? "#94a67e" : "white"}
                                         />
                                     </Pressable>
+                                ) : isPerforming ? (
+                                    <Pressable
+                                        onPress={() => onSendNudge(member.id, member.name, 'cheer', member.currentStreak)}
+                                        disabled={alreadyNudged}
+                                        className={`w-10 h-10 rounded-full items-center justify-center ${alreadyNudged ? "bg-sage-200" : cheerConfig?.bg
+                                            }`}
+                                    >
+                                        <CheerIcon
+                                            size={20}
+                                            color={alreadyNudged ? "#94a67e" : cheerConfig?.iconColor}
+                                        />
+                                    </Pressable>
+
                                 ) : (
                                     <View className="items-end">
                                         <Text className="text-lg font-bold text-sage-700">

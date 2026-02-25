@@ -3,20 +3,20 @@
     "name": "Alma Wellness",
     "slug": "alma-wellness",
     "scheme": "alma-wellness",
-    "version": "2.0.1",
+    "version": "2.0.5",
     "orientation": "portrait",
     "icon": "./public/app-logo.png",
     "userInterfaceStyle": "automatic",
     "splash": {
-      "image": "./public/splash-image.jpg",
-      "resizeMode": "cover",
-      "backgroundColor": "#878d7b"
+      "image": "./public/splash-screen.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#949E85"
     },
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.alma.wellness",
-      "buildNumber": "1",
+      "buildNumber": "3",
       "infoPlist": {
         "NSCameraUsageDescription": "Alma needs camera access to scan invite QR codes.",
         "NSPhotoLibraryUsageDescription": "Alma needs photo access to save your vision board images.",
@@ -30,8 +30,6 @@
     "android": {
       "edgeToEdgeEnabled": true,
       "permissions": [
-        "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO",
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO"
       ]

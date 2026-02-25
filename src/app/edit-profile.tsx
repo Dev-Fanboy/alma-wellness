@@ -16,22 +16,11 @@ import { useRouter } from "expo-router";
 import Animated, { FadeInUp } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
-import { ArrowLeft, Camera, Check, User, ImagePlus, Palette } from "lucide-react-native";
+import { ArrowLeft, Camera, Check, User, ImagePlus, Trash2 } from "lucide-react-native";
 import { useWellnessStore } from "@/lib/store";
 import { updateProfile } from "@/lib/api/profile";
 import { useAuth } from "@/lib/AuthContext";
-import { uploadAvatar, saveAvatarLocally, isLocalFile, isPresetAvatar } from "@/lib/avatarUtils";
-
-const AVATAR_OPTIONS = [
-  "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=200",
-  "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200",
-  "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=200",
-  "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200",
-  "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=200",
-  "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=200",
-  "https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=200",
-  "https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?w=200",
-];
+import { uploadAvatar, saveAvatarLocally, isLocalFile, isPresetAvatar, optimizeImage, markAvatarRecentlySaved } from "@/lib/avatarUtils";
 
 export default function EditProfileScreen() {
   const router = useRouter();
@@ -67,11 +56,13 @@ export default function EditProfileScreen() {
         mediaTypes: ["images"],
         allowsEditing: true,
         aspect: [1, 1],
-        quality: 0.8,
+        quality: 1, // Full quality, we'll optimize ourselves
       });
 
       if (!result.canceled && result.assets[0]) {
-        setAvatar(result.assets[0].uri);
+        // Optimize image immediately for better preview and faster upload
+        const optimizedUri = await optimizeImage(result.assets[0].uri);
+        setAvatar(optimizedUri);
         setShowAvatarPicker(false);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
@@ -101,11 +92,13 @@ export default function EditProfileScreen() {
         mediaTypes: ["images"],
         allowsEditing: true,
         aspect: [1, 1],
-        quality: 0.8,
+        quality: 1, // Full quality, we'll optimize ourselves
       });
 
       if (!result.canceled && result.assets[0]) {
-        setAvatar(result.assets[0].uri);
+        // Optimize image immediately for better preview and faster upload
+        const optimizedUri = await optimizeImage(result.assets[0].uri);
+        setAvatar(optimizedUri);
         setShowAvatarPicker(false);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
@@ -114,6 +107,12 @@ export default function EditProfileScreen() {
     } finally {
       setIsUploading(false);
     }
+  };
+
+  const handleRemovePhoto = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setAvatar("");
+    setShowAvatarPicker(false);
   };
 
   const handleSave = async () => {
@@ -145,6 +144,8 @@ export default function EditProfileScreen() {
         }
         // For preset avatars (unsplash URLs), just use directly
         setUserAvatar(finalAvatarUrl);
+        // Mark as recently saved so cloud sync doesn't overwrite
+        await markAvatarRecentlySaved();
       }
 
       // Update name
@@ -201,10 +202,10 @@ export default function EditProfileScreen() {
               onPress={handleSave}
               disabled={!hasChanges || !name.trim() || isUploading}
               className={`w-10 h-10 rounded-full items-center justify-center ${isUploading
-                  ? "bg-sage-400"
-                  : hasChanges && name.trim()
-                    ? "bg-sage-500"
-                    : "bg-sage-200"
+                ? "bg-sage-400"
+                : hasChanges && name.trim()
+                  ? "bg-sage-500"
+                  : "bg-sage-200"
                 }`}
             >
               {isUploading ? (
@@ -232,10 +233,16 @@ export default function EditProfileScreen() {
                 }}
                 className="relative"
               >
-                <Image
-                  source={{ uri: avatar }}
-                  className="w-28 h-28 rounded-full"
-                />
+                {avatar ? (
+                  <Image
+                    source={{ uri: avatar }}
+                    className="w-28 h-28 rounded-full"
+                  />
+                ) : (
+                  <View className="w-28 h-28 rounded-full bg-sage-200 items-center justify-center">
+                    <User size={48} color="#94a67e" />
+                  </View>
+                )}
                 <View className="absolute bottom-0 right-0 w-9 h-9 rounded-full bg-sage-500 items-center justify-center border-3 border-cream">
                   <Camera size={16} color="white" />
                 </View>
@@ -278,38 +285,18 @@ export default function EditProfileScreen() {
                   </Pressable>
                 </View>
 
-                {/* Divider */}
-                <View className="flex-row items-center mb-4">
-                  <View className="flex-1 h-px bg-sage-200" />
-                  <View className="flex-row items-center px-3">
-                    <Palette size={14} color="#94a67e" />
-                    <Text className="text-sage-400 text-xs ml-1">or choose an avatar</Text>
-                  </View>
-                  <View className="flex-1 h-px bg-sage-200" />
-                </View>
+                {/* Remove Option - Only if avatar exists */}
+                {avatar ? (
+                  <Pressable
+                    onPress={handleRemovePhoto}
+                    disabled={isUploading}
+                    className="bg-red-50 rounded-xl p-4 flex-row items-center justify-center border border-red-100"
+                  >
+                    <Trash2 size={20} color="#ef4444" />
+                    <Text className="ml-2 text-red-500 font-medium">Remove Current Photo</Text>
+                  </Pressable>
+                ) : null}
 
-                {/* Preset Avatars */}
-                <View className="flex-row flex-wrap">
-                  {AVATAR_OPTIONS.map((avatarUrl, index) => (
-                    <Pressable
-                      key={index}
-                      onPress={() => {
-                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                        setAvatar(avatarUrl);
-                        setShowAvatarPicker(false);
-                      }}
-                      className="w-1/4 p-1"
-                    >
-                      <Image
-                        source={{ uri: avatarUrl }}
-                        className={`w-full aspect-square rounded-full ${avatar === avatarUrl
-                          ? "border-3 border-sage-500"
-                          : "border-2 border-sage-100"
-                          }`}
-                      />
-                    </Pressable>
-                  ))}
-                </View>
               </Animated.View>
             )}
 

@@ -29,14 +29,36 @@ export function useFriends() {
         return Math.floor(diffMs / (1000 * 60 * 60));
     };
 
-    // Transform Profile to FriendWithStatus
-    const transformProfile = (profile: Profile): FriendWithStatus => {
+    // Fetch real weekly points from daily_progress table
+    const fetchWeeklyPoints = async (userIds: string[]): Promise<Record<string, number>> => {
+        if (userIds.length === 0) return {};
+        const weekAgo = new Date();
+        weekAgo.setDate(weekAgo.getDate() - 7);
+        const weekAgoStr = weekAgo.toISOString().split("T")[0];
+
+        const { data, error } = await supabase
+            .from("daily_progress")
+            .select("user_id, points_earned")
+            .in("user_id", userIds)
+            .gte("date", weekAgoStr);
+
+        if (error || !data) return {};
+
+        const totals: Record<string, number> = {};
+        for (const row of data) {
+            totals[row.user_id] = (totals[row.user_id] || 0) + (row.points_earned || 0);
+        }
+        return totals;
+    };
+
+    // Transform Profile to FriendWithStatus (weeklyPoints filled in later)
+    const transformProfile = (profile: Profile, weeklyPoints?: number): FriendWithStatus => {
         const hoursSinceActive = getHoursSinceActive(profile.last_active_at);
         return {
             ...profile,
             isOnline: hoursSinceActive < 1,
             lastActive: hoursSinceActive,
-            weeklyPoints: Math.floor(profile.plant_points * 0.15), // Estimate weekly from total
+            weeklyPoints: weeklyPoints ?? 0,
         };
     };
 
@@ -56,7 +78,9 @@ export function useFriends() {
                 setError(fetchError.message);
                 setFriends([]);
             } else if (data) {
-                setFriends(data.map(transformProfile));
+                // Fetch real weekly points for all friends
+                const weeklyMap = await fetchWeeklyPoints(data.map(p => p.id));
+                setFriends(data.map(p => transformProfile(p, weeklyMap[p.id])));
                 setError(null);
             }
         } catch (err: any) {
@@ -199,7 +223,7 @@ export function useFriends() {
             setFriends((prev) =>
                 prev.map((f) =>
                     f.id === updatedProfile.id
-                        ? transformProfile(updatedProfile as Profile)
+                        ? transformProfile(updatedProfile as Profile, f.weeklyPoints)
                         : f
                 )
             );

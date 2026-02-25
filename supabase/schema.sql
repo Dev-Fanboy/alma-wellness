@@ -78,10 +78,12 @@ ALTER TABLE push_tokens ENABLE ROW LEVEL SECURITY;
 
 -- Ensure policies are dropped if they already exist, then create them
 
--- Profiles: Users can read own profile
+-- Profiles: Authenticated users can view all profiles (needed for friend lookups)
+-- Note: UPDATE and INSERT remain restricted to own profile
 DROP POLICY IF EXISTS "Users can view own profile" ON profiles;
-CREATE POLICY "Users can view own profile" ON profiles
-  FOR SELECT USING ((SELECT auth.uid()) = id);
+DROP POLICY IF EXISTS "Authenticated users can view all profiles" ON profiles;
+CREATE POLICY "Authenticated users can view all profiles" ON profiles
+  FOR SELECT TO authenticated USING (true);
 
 -- Profiles: Users can update own profile
 DROP POLICY IF EXISTS "Users can update own profile" ON profiles;
@@ -185,13 +187,3 @@ DROP TRIGGER IF EXISTS on_progress_logged ON daily_progress;
 CREATE TRIGGER on_progress_logged
   AFTER INSERT OR UPDATE ON daily_progress
   FOR EACH ROW EXECUTE FUNCTION public.update_last_active();
-
--- Public Profile View Check
--- Replace friends-view policy with an authenticated-all policy so users can find each other by invite code.
-DROP POLICY IF EXISTS "Users can view friends' profiles" ON profiles;
-DROP POLICY IF EXISTS "Authenticated users can view all profiles" ON profiles;
-
-CREATE POLICY "Authenticated users can view all profiles"
-  ON profiles FOR SELECT
-  TO authenticated
-  USING (true);

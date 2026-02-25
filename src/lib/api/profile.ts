@@ -106,6 +106,60 @@ export async function syncProgress(
 }
 
 /**
+ * Combined sync: profile fields + progress + daily stats in one call.
+ * Accepts a pre-cached userId to avoid redundant getUser() roundtrips.
+ */
+export async function syncAllData(
+    userId: string,
+    profileFields: {
+        name: string;
+        avatar_url: string;
+        age_range: string;
+        wellness_focus: string;
+        invite_code: string;
+    },
+    progressFields: {
+        plant_level: number;
+        plant_points: number;
+        current_streak: number;
+        longest_streak: number;
+        membership_status: "active" | "expired";
+    },
+    dailyStats: {
+        points_earned: number;
+        goals_completed: number;
+        total_goals: number;
+    }
+) {
+    const now = new Date().toISOString();
+    const today = now.split("T")[0];
+
+    // Single profile update combining all fields
+    const { error: profileError } = await supabase
+        .from("profiles")
+        .update({
+            ...profileFields,
+            ...progressFields,
+            last_active_at: now,
+            updated_at: now,
+        })
+        .eq("id", userId);
+
+    if (profileError) return { error: profileError };
+
+    // Upsert daily progress
+    const { error: progressError } = await supabase
+        .from("daily_progress")
+        .upsert({
+            user_id: userId,
+            date: today,
+            ...dailyStats,
+        }, { onConflict: "user_id,date" });
+
+    return { error: progressError };
+}
+
+/**
  * Check and increment friends garden streak if goal met
  */
 export async function checkAndIncrementFriendsStreak(totalPoints: number) {
@@ -155,25 +209,28 @@ export async function getFriends(): Promise<{ data: Profile[] | null; error: any
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { data: null, error: { message: "Not authenticated" } };
 
-    // Get accepted friendships where user is either user_id or friend_id
-    const { data: friendships, error } = await supabase
+    // Fetch friendships where user is the initiator (user_id)
+    const { data: sentFriendships, error: sentError } = await supabase
         .from("friendships")
-        .select(`
-      id,
-      user_id,
-      friend_id,
-      status,
-      created_at
-    `)
-        .eq("status", "accepted")
-        .or(`user_id.eq.${user.id},friend_id.eq.${user.id}`);
+        .select("friend_id")
+        .eq("user_id", user.id)
+        .eq("status", "accepted");
 
-    if (error) return { data: null, error };
+    if (sentError) return { data: null, error: sentError };
 
-    // Get friend IDs
-    const friendIds = friendships?.map((f) =>
-        f.user_id === user.id ? f.friend_id : f.user_id
-    ) || [];
+    // Fetch friendships where user is the receiver (friend_id)
+    const { data: receivedFriendships, error: receivedError } = await supabase
+        .from("friendships")
+        .select("user_id")
+        .eq("friend_id", user.id)
+        .eq("status", "accepted");
+
+    if (receivedError) return { data: null, error: receivedError };
+
+    // Combine friend IDs
+    const sentIds = sentFriendships?.map(f => f.friend_id) || [];
+    const receivedIds = receivedFriendships?.map(f => f.user_id) || [];
+    const friendIds = [...new Set([...sentIds, ...receivedIds])]; // Deduplicate
 
     if (friendIds.length === 0) return { data: [], error: null };
 

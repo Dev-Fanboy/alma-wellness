@@ -22,6 +22,7 @@ import {
   RotateCcw,
   Trash2,
   Share2,
+  UserX,
   CreditCard,
   Sparkles,
   Volume2,
@@ -37,6 +38,7 @@ import { ShareModal } from "@/components/ShareModal";
 import { soundManager, playTap, playChime } from "@/lib/sounds";
 import { useAuth } from "@/lib/AuthContext";
 import { isAvatarValid } from "@/lib/avatarUtils";
+import { supabase } from "@/lib/supabase";
 
 const ICON_MAP: Record<
   string,
@@ -66,6 +68,8 @@ export default function ProfileScreen() {
 
   const [showResetModal, setShowResetModal] = useState(false);
   const [showSignOutModal, setShowSignOutModal] = useState(false);
+  const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
   const [shareModalVisible, setShareModalVisible] = useState(false);
   const [selectedAchievement, setSelectedAchievement] = useState<Achievement | null>(null);
@@ -138,11 +142,6 @@ export default function ProfileScreen() {
     router.push("/notification-settings");
   };
 
-  const handleResetOnboarding = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    resetOnboarding();
-  };
-
   const handleHelpSupport = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push("/help");
@@ -188,12 +187,6 @@ export default function ProfileScreen() {
       label: "Export Data",
       sublabel: "Download your wellness history",
       onPress: handleExportData,
-    },
-    {
-      icon: RotateCcw,
-      label: "Reset Onboarding",
-      sublabel: "View welcome screens again",
-      onPress: handleResetOnboarding,
     },
   ];
 
@@ -691,17 +684,39 @@ export default function ProfileScreen() {
               {/* Reset App Data Button */}
               <Pressable
                 onPress={handleResetPress}
+                className="flex-row items-center p-4 border-b border-sage-50"
+              >
+                <View className="w-10 h-10 rounded-full bg-amber-50 items-center justify-center">
+                  <RotateCcw size={20} color="#d97706" />
+                </View>
+                <View className="flex-1 ml-3">
+                  <Text className="text-base font-medium text-amber-500">
+                    Reset App Data
+                  </Text>
+                  <Text className="text-xs text-sage-500">
+                    Clear local progress to start fresh
+                  </Text>
+                </View>
+                <ChevronRight size={20} color="#fca5a5" />
+              </Pressable>
+
+              {/* Delete Account Button */}
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setShowDeleteAccountModal(true);
+                }}
                 className="flex-row items-center p-4"
               >
                 <View className="w-10 h-10 rounded-full bg-red-50 items-center justify-center">
-                  <Trash2 size={20} color="#ef4444" />
+                  <UserX size={20} color="#ef4444" />
                 </View>
                 <View className="flex-1 ml-3">
                   <Text className="text-base font-medium text-red-500">
-                    Reset All Data
+                    Delete Account
                   </Text>
                   <Text className="text-xs text-sage-500">
-                    Clear all progress and start fresh
+                    Permanently delete your account and data
                   </Text>
                 </View>
                 <ChevronRight size={20} color="#fca5a5" />
@@ -872,6 +887,65 @@ export default function ProfileScreen() {
             </View>
           </Pressable>
         </Pressable>
+      </Modal>
+
+      {/* Delete Account Confirmation Modal */}
+      <Modal visible={showDeleteAccountModal} animationType="fade" transparent>
+        <View className="flex-1 bg-black/50 justify-center items-center px-6">
+          <View className="bg-cream rounded-3xl p-6 w-full max-w-sm">
+            <View className="items-center mb-5">
+              <View className="w-16 h-16 rounded-2xl bg-red-50 items-center justify-center mb-3">
+                <UserX size={32} color="#ef4444" />
+              </View>
+              <Text className="text-xl font-bold text-sage-900 text-center">
+                Delete Account?
+              </Text>
+              <Text className="text-sm text-sage-600 text-center mt-2">
+                This will permanently delete your account, all your progress, and data. This action cannot be undone.
+              </Text>
+            </View>
+
+            <View className="flex-row mt-2">
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setShowDeleteAccountModal(false);
+                }}
+                disabled={isDeleting}
+                className={`flex-1 py-3 mr-2 rounded-xl bg-sage-100 ${isDeleting ? "opacity-50" : "opacity-100"}`}
+              >
+                <Text className="text-sage-700 font-semibold text-center">
+                  Cancel
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={async () => {
+                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                  setIsDeleting(true);
+                  try {
+                    // Call RPC to delete user from Supabase auth
+                    await supabase.rpc('delete_user_account');
+
+                    resetAllData();
+                    await signOut();
+                    setShowDeleteAccountModal(false);
+                    router.replace("/onboarding");
+                  } catch (error) {
+                    console.error("Delete account error:", error);
+                  } finally {
+                    setIsDeleting(false);
+                  }
+                }}
+                disabled={isDeleting}
+                className={`flex-1 py-3 ml-2 rounded-xl bg-red-500 ${isDeleting ? "opacity-50" : "opacity-100"}`}
+              >
+                <Text className="text-white font-semibold text-center">
+                  {isDeleting ? "Deleting..." : "Delete"}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
       </Modal>
     </View>
   );

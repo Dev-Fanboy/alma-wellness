@@ -99,7 +99,7 @@ export function useGroves() {
         return {
             id: member.user_id,
             name: profile?.name || "Unknown",
-            avatar: profile?.avatar_url || "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=200",
+            avatar: profile?.avatar_url || "",
             plantLevel: profile?.plant_level || 1,
             totalPoints: profile?.plant_points || 0,
             weeklyPoints: Math.floor((profile?.plant_points || 0) * 0.15), // Estimate

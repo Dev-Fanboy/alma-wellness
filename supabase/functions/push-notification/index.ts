@@ -17,9 +17,9 @@ serve(async (req) => {
             return new Response("No record found", { status: 400 });
         }
 
-        console.log(`Processing nudge for user: ${record.to_user_id}`);
+        console.log(`Processing nudge for user: ${record.to_user_id}, type: ${record.type || 'rain'}`);
 
-        // Create Supabase client (Admin context)
+        // Create Supabase client (Admin context — bypasses RLS)
         const supabaseAdmin = createClient(
             Deno.env.get("SUPABASE_URL") ?? "",
             Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
@@ -41,7 +41,7 @@ serve(async (req) => {
             return new Response("No tokens found", { status: 200 });
         }
 
-        // 2. Get Sender Name (Optional, for better message)
+        // 2. Get Sender Name
         let senderName = "A friend";
         if (record.from_user_id) {
             const { data: sender } = await supabaseAdmin
@@ -53,16 +53,29 @@ serve(async (req) => {
             if (sender) senderName = sender.name;
         }
 
-        // 3. Prepare Expo Push Notifications
+        // 3. Build notification based on nudge type
+        const nudgeType = record.type || "rain";
+        let title: string;
+        let body: string;
+
+        if (nudgeType === "cheer") {
+            title = "New Cheer! 🔥";
+            body = `${senderName} cheered you on for your streak!`;
+        } else {
+            title = "Taking care of the garden 🌧️";
+            body = `${senderName} sent you some rain!`;
+        }
+
+        // 4. Prepare Expo Push Notifications
         const messages = tokens.map((t) => ({
             to: t.token,
             sound: "default",
-            title: "Taking care of the garden 🌧️",
-            body: `${senderName} sent you some rain!`,
-            data: { url: "alma://garden" }, // Deep link to garden
+            title,
+            body,
+            data: { url: "alma://garden" },
         }));
 
-        // 4. Send to Expo
+        // 5. Send to Expo
         const expoResponse = await fetch("https://exp.host/--/api/v2/push/send", {
             method: "POST",
             headers: {

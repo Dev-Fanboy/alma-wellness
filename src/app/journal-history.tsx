@@ -1,15 +1,16 @@
-import React, { useState } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import {
   View,
   Text,
-  ScrollView,
+  SectionList,
   Pressable,
   Modal,
+  ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import Animated, { FadeInDown, FadeInUp } from "react-native-reanimated";
+import Animated, { FadeInDown } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
 import {
   ArrowLeft,
@@ -78,9 +79,10 @@ export default function JournalHistoryScreen() {
     });
   };
 
-  // Group entries by month
-  const groupedEntries = journalEntries.reduce(
-    (groups, entry) => {
+  // Group entries by month as SectionList sections
+  const sections = useMemo(() => {
+    const groups: Record<string, JournalEntry[]> = {};
+    for (const entry of journalEntries) {
       const date = new Date(entry.date);
       const monthYear = date.toLocaleDateString("en-US", {
         month: "long",
@@ -90,10 +92,73 @@ export default function JournalHistoryScreen() {
         groups[monthYear] = [];
       }
       groups[monthYear].push(entry);
-      return groups;
-    },
-    {} as Record<string, JournalEntry[]>
-  );
+    }
+    return Object.entries(groups).map(([title, data]) => ({ title, data }));
+  }, [journalEntries]);
+
+  // Render a single journal entry card
+  const renderEntry = useCallback(({ item: entry }: { item: JournalEntry }) => {
+    const moodData = entry.mood ? MOOD_ICONS[entry.mood] : null;
+    const MoodIcon = moodData?.icon;
+
+    return (
+      <Pressable
+        onPress={() => handleEntryPress(entry)}
+        className="bg-white rounded-2xl p-4 mb-2 mx-5"
+      >
+        <View className="flex-row items-center justify-between mb-2">
+          <Text className="text-sm font-medium text-sage-700">
+            {formatShortDate(entry.date)}
+          </Text>
+          <View className="flex-row items-center">
+            <Text className="text-xs text-sage-400 mr-2">
+              {formatTime(entry.date)}
+            </Text>
+            {moodData && MoodIcon && (
+              <View
+                className="rounded-full px-2 py-1 flex-row items-center"
+                style={{ backgroundColor: moodData.bg }}
+              >
+                <MoodIcon size={12} color={moodData.color} />
+                <Text
+                  className="text-xs ml-1 capitalize font-medium"
+                  style={{ color: moodData.color }}
+                >
+                  {entry.mood}
+                </Text>
+              </View>
+            )}
+          </View>
+        </View>
+
+        {entry.prompt && (
+          <Text className="text-xs text-sage-400 italic mb-1">
+            "{entry.prompt}"
+          </Text>
+        )}
+
+        <Text
+          className="text-sage-800 text-sm leading-relaxed"
+          numberOfLines={3}
+        >
+          {entry.content}
+        </Text>
+      </Pressable>
+    );
+  }, []);
+
+  // Render section header (month group)
+  const renderSectionHeader = useCallback(({ section }: { section: { title: string; data: JournalEntry[] } }) => (
+    <View className="flex-row items-center px-5 mb-2 mt-2">
+      <Calendar size={14} color="#94a67e" />
+      <Text className="ml-2 text-sm font-medium text-sage-600">
+        {section.title}
+      </Text>
+      <Text className="ml-2 text-xs text-sage-400">
+        ({section.data.length} {section.data.length === 1 ? "entry" : "entries"})
+      </Text>
+    </View>
+  ), []);
 
   return (
     <View className="flex-1 bg-cream">
@@ -152,124 +217,52 @@ export default function JournalHistoryScreen() {
             </Pressable>
           </View>
         ) : (
-          <ScrollView
-            className="flex-1"
+          <SectionList
+            sections={sections}
+            keyExtractor={(item) => item.id}
+            renderItem={renderEntry}
+            renderSectionHeader={renderSectionHeader}
             contentContainerStyle={{ paddingBottom: 100 }}
             showsVerticalScrollIndicator={false}
-          >
-            {/* Stats */}
-            <Animated.View
-              entering={FadeInDown.delay(100).duration(500)}
-              className="mx-5 mb-4"
-            >
-              <View className="bg-white rounded-2xl p-4 flex-row">
-                <View className="flex-1 items-center">
-                  <Text className="text-2xl font-bold text-sage-800">
-                    {journalEntries.length}
-                  </Text>
-                  <Text className="text-xs text-sage-500">Total Entries</Text>
-                </View>
-                <View className="w-px bg-sage-100" />
-                <View className="flex-1 items-center">
-                  <Text className="text-2xl font-bold text-sage-800">
-                    {
-                      new Set(
-                        journalEntries.map((e) =>
-                          new Date(e.date).toDateString()
-                        )
-                      ).size
-                    }
-                  </Text>
-                  <Text className="text-xs text-sage-500">Days Journaled</Text>
-                </View>
-                <View className="w-px bg-sage-100" />
-                <View className="flex-1 items-center">
-                  <Text className="text-2xl font-bold text-sage-800">
-                    {
-                      journalEntries.filter((e) => e.mood === "great").length
-                    }
-                  </Text>
-                  <Text className="text-xs text-sage-500">Great Days</Text>
-                </View>
-              </View>
-            </Animated.View>
-
-            {/* Entries grouped by month */}
-            {Object.entries(groupedEntries).map(
-              ([monthYear, entries], groupIndex) => (
-                <Animated.View
-                  key={monthYear}
-                  entering={FadeInUp.delay(200 + groupIndex * 100).duration(500)}
-                  className="mb-4"
-                >
-                  <View className="flex-row items-center px-5 mb-2">
-                    <Calendar size={14} color="#94a67e" />
-                    <Text className="ml-2 text-sm font-medium text-sage-600">
-                      {monthYear}
+            stickySectionHeadersEnabled={false}
+            ListHeaderComponent={
+              <Animated.View
+                entering={FadeInDown.delay(100).duration(500)}
+                className="mx-5 mb-4"
+              >
+                <View className="bg-white rounded-2xl p-4 flex-row">
+                  <View className="flex-1 items-center">
+                    <Text className="text-2xl font-bold text-sage-800">
+                      {journalEntries.length}
                     </Text>
-                    <Text className="ml-2 text-xs text-sage-400">
-                      ({entries.length} {entries.length === 1 ? "entry" : "entries"})
+                    <Text className="text-xs text-sage-500">Total Entries</Text>
+                  </View>
+                  <View className="w-px bg-sage-100" />
+                  <View className="flex-1 items-center">
+                    <Text className="text-2xl font-bold text-sage-800">
+                      {
+                        new Set(
+                          journalEntries.map((e) =>
+                            new Date(e.date).toDateString()
+                          )
+                        ).size
+                      }
                     </Text>
+                    <Text className="text-xs text-sage-500">Days Journaled</Text>
                   </View>
-
-                  <View className="px-5">
-                    {entries.map((entry, index) => {
-                      const moodData = entry.mood
-                        ? MOOD_ICONS[entry.mood]
-                        : null;
-                      const MoodIcon = moodData?.icon;
-
-                      return (
-                        <Pressable
-                          key={entry.id}
-                          onPress={() => handleEntryPress(entry)}
-                          className="bg-white rounded-2xl p-4 mb-2"
-                        >
-                          <View className="flex-row items-center justify-between mb-2">
-                            <Text className="text-sm font-medium text-sage-700">
-                              {formatShortDate(entry.date)}
-                            </Text>
-                            <View className="flex-row items-center">
-                              <Text className="text-xs text-sage-400 mr-2">
-                                {formatTime(entry.date)}
-                              </Text>
-                              {moodData && MoodIcon && (
-                                <View
-                                  className="rounded-full px-2 py-1 flex-row items-center"
-                                  style={{ backgroundColor: moodData.bg }}
-                                >
-                                  <MoodIcon size={12} color={moodData.color} />
-                                  <Text
-                                    className="text-xs ml-1 capitalize font-medium"
-                                    style={{ color: moodData.color }}
-                                  >
-                                    {entry.mood}
-                                  </Text>
-                                </View>
-                              )}
-                            </View>
-                          </View>
-
-                          {entry.prompt && (
-                            <Text className="text-xs text-sage-400 italic mb-1">
-                              "{entry.prompt}"
-                            </Text>
-                          )}
-
-                          <Text
-                            className="text-sage-800 text-sm leading-relaxed"
-                            numberOfLines={3}
-                          >
-                            {entry.content}
-                          </Text>
-                        </Pressable>
-                      );
-                    })}
+                  <View className="w-px bg-sage-100" />
+                  <View className="flex-1 items-center">
+                    <Text className="text-2xl font-bold text-sage-800">
+                      {
+                        journalEntries.filter((e) => e.mood === "great").length
+                      }
+                    </Text>
+                    <Text className="text-xs text-sage-500">Great Days</Text>
                   </View>
-                </Animated.View>
-              )
-            )}
-          </ScrollView>
+                </View>
+              </Animated.View>
+            }
+          />
         )}
       </SafeAreaView>
 

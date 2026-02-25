@@ -15,6 +15,11 @@
             "autoIncrement": true,
             "ios": {
                 "image": "latest"
+            },
+            "env": {
+                "EXPO_PUBLIC_SUPABASE_URL": "https://dfumitashsrvqpprkamg.supabase.co",
+                "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRmdW1pdGFzaHNydnFwcHJrYW1nIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkzODE1NjksImV4cCI6MjA4NDk1NzU2OX0.ffE0qXvE5tgrDnAvetLh4wIFSlEClJ3XRPkYyEAlnoc",
+                "EXPO_PUBLIC_PROJECT_ID": "a25cc2b4-63b9-48e1-a1b6-c048b04b5b3d"
             }
         }
     },
