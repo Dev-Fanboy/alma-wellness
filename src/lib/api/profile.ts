@@ -301,16 +301,6 @@ export async function sendFriendRequestByCode(inviteCode: string) {
         .select()
         .single();
 
-    if (!error) {
-        // Send push notification to the friend
-        const userName = user.user_metadata.name || "A friend";
-        await sendPushNotification(
-            friend.id,
-            "New Friend Request",
-            `${userName} wants to join your garden! 🌱`
-        );
-    }
-
     return { data, error };
 }
 
@@ -324,21 +314,6 @@ export async function acceptFriendRequest(friendshipId: string) {
         .eq("id", friendshipId)
         .select()
         .single();
-
-    if (!error && data && user) {
-        // Find the OTHER user ID (the one who sent the request)
-        // If I am user_id, friend is friend_id. If I am friend_id, friend is user_id.
-        // Wait, 'user_id' is requester, 'friend_id' is recipient.
-        // If I accepted, I am likely 'friend_id'.
-        const otherUserId = data.user_id === user.id ? data.friend_id : data.user_id;
-
-        const userName = user.user_metadata.name || "A friend";
-        await sendPushNotification(
-            otherUserId,
-            "Friend Request Accepted!",
-            `${userName} joined your garden! 🌻`
-        );
-    }
 
     return { data, error };
 }
