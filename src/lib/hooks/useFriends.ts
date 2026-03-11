@@ -54,11 +54,12 @@ export function useFriends() {
     // Transform Profile to FriendWithStatus (weeklyPoints filled in later)
     const transformProfile = (profile: Profile, weeklyPoints?: number): FriendWithStatus => {
         const hoursSinceActive = getHoursSinceActive(profile.last_active_at);
+        const estimatedWeekly = Math.floor((profile.plant_points || 0) * 0.15);
         return {
             ...profile,
             isOnline: hoursSinceActive < 1,
             lastActive: hoursSinceActive,
-            weeklyPoints: weeklyPoints ?? 0,
+            weeklyPoints: weeklyPoints || estimatedWeekly,
         };
     };
 

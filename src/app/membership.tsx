@@ -53,6 +53,7 @@ import { useAuth } from "@/lib/AuthContext";
 import { getPartnerDiscounts, PartnerDiscount } from "@/lib/api/discounts";
 
 import { BlurView } from "expo-blur";
+import { Plant } from "@/components/Plant";
 
 // Category icon mapping
 const CATEGORY_ICONS: Record<string, React.ComponentType<{ size: number; color: string }>> = {
@@ -94,9 +95,20 @@ function transformDiscount(d: PartnerDiscount): PartnerBusiness {
 export default function MembershipScreen() {
   const userName = useWellnessStore((s) => s.userName);
   const plantLevel = useWellnessStore((s) => s.plantLevel);
+  const plantStage = useWellnessStore((s) => s.plantStage);
   const inviteCode = useWellnessStore((s) => s.inviteCode);
   const membershipStatus = useWellnessStore((s) => s.membershipStatus);
   const { user } = useAuth();
+
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  // Timer for live verification
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Fetch partner discounts from Supabase
   const { data: discountsData, isLoading: discountsLoading } = useQuery({
@@ -114,9 +126,16 @@ export default function MembershipScreen() {
   const shimmer = useSharedValue(0);
   const cardRotateX = useSharedValue(0);
   const flipRotation = useSharedValue(0);
+  const spin = useSharedValue(0);
   const [isFlipped, setIsFlipped] = useState(false);
 
   useEffect(() => {
+    spin.value = withRepeat(
+      withTiming(360, { duration: 15000, easing: Easing.linear }),
+      -1,
+      false
+    );
+
     shimmer.value = withRepeat(
       withTiming(1, { duration: 2500, easing: Easing.linear }),
       -1,
@@ -138,6 +157,10 @@ export default function MembershipScreen() {
 
   const shimmerStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: shimmer.value * 350 - 100 }],
+  }));
+
+  const spinStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${spin.value}deg` }],
   }));
 
   // Front face animated style
@@ -691,12 +714,47 @@ export default function MembershipScreen() {
               </View>
 
               <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 40 }}>
-                {/* Partner Image */}
-                <Image
-                  source={{ uri: selectedPartner.image }}
-                  style={{ width: "100%", height: 200 }}
-                  resizeMode="cover"
-                />
+                {/* Partner Image & Live Verification */}
+                <View className="relative">
+                  <Image
+                    source={{ uri: selectedPartner.image }}
+                    style={{ width: "100%", height: 320 }}
+                    resizeMode="cover"
+                  />
+                  {/* Gradient Overlay */}
+                  <LinearGradient
+                    colors={["rgba(15, 21, 16, 0.4)", "rgba(15, 21, 16, 0.95)", "#0f1510"]}
+                    style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
+                  />
+                  {/* Live Verification Elements overlayed on image */}
+                  <View className="absolute top-0 left-0 right-0 bottom-0 items-center justify-end pb-8 pt-10 px-5">
+                    <Animated.View style={spinStyle}>
+                      <View className="bg-sage-900/40 p-3 rounded-full mb-3 border border-sage-500/30">
+                        <Plant stage={plantStage} level={plantLevel} size={110} />
+                      </View>
+                    </Animated.View>
+
+                    <View className="flex-row items-center bg-green-500/20 px-3 py-1.5 rounded-full border border-green-500/30 mb-3">
+                      <View className="w-2 h-2 rounded-full bg-green-400 mr-2 shadow-sm" style={{ shadowColor: '#4ade80', shadowOpacity: 0.8, shadowRadius: 4, shadowOffset: { width: 0, height: 0 } }} />
+                      <Text className="text-green-400 text-xs font-bold tracking-widest">LIVE VERIFICATION</Text>
+                    </View>
+
+                    <Text className="text-white font-bold text-3xl text-center shadow-lg">
+                      {userName || "Member"}
+                    </Text>
+
+                    <View className="flex-row items-center justify-center mt-2">
+                      <Crown size={16} color={tierColor} />
+                      <Text className="text-sage-300 font-semibold ml-1.5 shadow-sm text-base">
+                        {memberTier} Member
+                      </Text>
+                      <Text className="text-white/50 mx-3">•</Text>
+                      <Text className="text-white/90 font-mono shadow-sm text-base font-semibold tracking-wider">
+                        {currentTime.toLocaleTimeString()}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
 
                 {/* Partner Info */}
                 <View className="px-5 pt-5">

@@ -164,10 +164,10 @@ function RetreatCard({
                     {/* Badge */}
                     <View className="absolute top-3 left-3">
                         {retreat.isUpcoming ? (
-                            <View className="bg-sage-500 rounded-full px-3 py-1 flex-row items-center">
-                                <Sparkles size={12} color="white" />
+                            <View className={`${retreat.registrationUrl ? 'bg-sage-500' : 'bg-red-500/80'} rounded-full px-3 py-1 flex-row items-center`}>
+                                {retreat.registrationUrl ? <Sparkles size={12} color="white" /> : <Check size={12} color="white" />}
                                 <Text className="text-white text-xs font-semibold ml-1">
-                                    Next Up
+                                    {retreat.registrationUrl ? "Next Up" : "Past"}
                                 </Text>
                             </View>
                         ) : retreat.isPast ? (
@@ -277,12 +277,12 @@ function RetreatCard({
                                 </Pressable>
                             )}
 
-                            {/* Coming Soon for retreats without registration */}
+                            {/* Closed for retreats without registration */}
                             {!retreat.isPast && !retreat.registrationUrl && (
                                 <View className="bg-sage-200 rounded-xl py-4 flex-row items-center justify-center">
                                     <Sparkles size={18} color="#5c6e4a" />
                                     <Text className="text-sage-700 font-semibold text-base ml-2">
-                                        Registration Opening Soon
+                                        Registration Closed
                                     </Text>
                                 </View>
                             )}

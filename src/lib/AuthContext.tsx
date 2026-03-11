@@ -106,6 +106,56 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         };
     }, []);
 
+    // Effect to fetch initial profile and subscribe to real-time updates
+    useEffect(() => {
+        if (!session?.user?.id) return;
+
+        const userId = session.user.id;
+
+        // 1. Fetch latest profile on mount
+        const fetchInitialProfile = async () => {
+            try {
+                const { data, error } = await supabase
+                    .from('profiles')
+                    .select('membership_status')
+                    .eq('id', userId)
+                    .single();
+
+                if (!error && data) {
+                    useWellnessStore.getState().setMembershipStatus(data.membership_status);
+                }
+            } catch (err) {
+                console.error("Error fetching initial profile for membership check:", err);
+            }
+        };
+
+        fetchInitialProfile();
+
+        // 2. Subscribe to real-time updates for this specific user's profile
+        const profileSubscription = supabase
+            .channel(`public:profiles:id=eq.${userId}`)
+            .on(
+                'postgres_changes',
+                {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'profiles',
+                    filter: `id=eq.${userId}`
+                },
+                (payload) => {
+                    const newStatus = payload.new.membership_status;
+                    if (newStatus !== undefined) {
+                        useWellnessStore.getState().setMembershipStatus(newStatus);
+                    }
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(profileSubscription);
+        };
+    }, [session?.user?.id]);
+
     const handleSignOut = async () => {
         try {
             // Attempt to unregister push notifications (fire and forget / non-blocking)
